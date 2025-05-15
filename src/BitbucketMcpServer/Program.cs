@@ -1,4 +1,5 @@
 ﻿using System.Diagnostics.CodeAnalysis;
+using System.Threading.Tasks;
 using Serilog;
 using SharpBucket.V2;
 using SharpBucket.V2.Pocos;
@@ -10,7 +11,7 @@ namespace PolarionMcpServer;
 public class Program
 {
     [RequiresUnreferencedCode("Uses reflection")]
-    public static int Main(string[] args)
+    public static async Task<int> Main(string[] args)
     {
         try
         {
@@ -69,12 +70,28 @@ public class Program
                     var sharpBucket = new SharpBucketV2();
                     // Null forgiveness operator used here because configMissing check ensures they are not null.
                     sharpBucket.BasicAuthentication(bitbucketUsername!, bitbucketAppPassword!);
-                    Log.Information("Successfully authenticated with Bitbucket.");
-
-                    Log.Information($"Attempting to access repository: {accountName}/{repoSlug}");
+                    
+                    // Validate authentication by fetching repositories
+                    Log.Information($"Attempting to access and verify repository: {accountName}/{repoSlug}");
                     var repositoriesEndPoint = sharpBucket.RepositoriesEndPoint();
                     var repositoryResource = repositoriesEndPoint.RepositoryResource(accountName!, repoSlug!);
 
+                    // Validate repository access by fetching repository details
+
+                    Repository? repositoryDetails = null;
+                    try
+                    {
+                        _ = await repositoryResource.GetRepositoryAsync();
+                    }
+                    catch (Exception ex)
+                    {
+                        Log.Error($"Unable to access repository: {accountName}/{repoSlug}. Error: {ex.Message}");
+                        return 1;
+                    }
+
+                    Log.Information($"Successfully accessed repository: {repositoryDetails?.full_name}");
+
+                    Log.Information("Proceeding to list pull requests...");
                     // Corrected: Get PullRequestsResource first, then list pull requests
                     var pullRequestsResource = repositoryResource.PullRequestsResource();
                     List<PullRequest> pullRequests = pullRequestsResource.ListPullRequests();
