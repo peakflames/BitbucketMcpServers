@@ -33,7 +33,10 @@
     <PackageReference Include="Serilog.Sinks.Console" Version="6.0.0" />
     <PackageReference Include="Serilog.Sinks.Debug" Version="3.0.0" />
     <PackageReference Include="Serilog.Sinks.File" Version="6.0.0" />
-    <PackageReference Include="SharpBucket" Version="0.17.0" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\BitbucketMcpTools\BitbucketMcpTools.csproj" />
   </ItemGroup>
 
   <!-- copy the config file to the output directory -->
@@ -44,8 +47,6 @@
   <ItemGroup>    
     <TrimmerRootAssembly Include="SharpBucket" />
     <TrimmerRootAssembly Include="Serilog" />
-    <TrimmerRootAssembly Include="ReverseMarkdown" />
-    <TrimmerRootAssembly Include="HtmlAgilityPack" />
   </ItemGroup>
 
 </Project>

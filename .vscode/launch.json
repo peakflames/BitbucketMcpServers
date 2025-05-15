@@ -10,7 +10,7 @@
             "request": "launch",
             "preLaunchTask": "build",
             "program": "${workspaceFolder}/src/BitbucketMcpServer/bin/Debug/net9.0/win-x64/BitbucketMcpServer.dll",
-            "args": ["-u", "your-username", "-p", "app-passwd", "-a", "account", "-r", "repo-name"],
+            "args": ["-u", "username", "-p", "some-app-password", "-a", "some-account-namer", "-r", "some-repo-name"],
             "cwd": "${workspaceFolder}",
             "stopAtEntry": false,
             "console": "integratedTerminal"
