@@ -1,7 +1,8 @@
 ﻿using System.Diagnostics.CodeAnalysis;
-using System.Threading.Tasks;
+using BitbucketMcpTools;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Hosting;
 using Serilog;
-using SharpBucket.V2;
 using SharpBucket.V2.Pocos;
 
 
@@ -11,12 +12,12 @@ namespace PolarionMcpServer;
 public class Program
 {
     [RequiresUnreferencedCode("Uses reflection")]
-    public static async Task<int> Main(string[] args)
+    public static int Main(string[] args)
     {
         try
         {
             Log.Logger = new LoggerConfiguration()
-                            .MinimumLevel.Verbose() // Capture all log levels
+                            .MinimumLevel.Warning()
                             .WriteTo.File(Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "logs", "BitbucketMcpServer_.log"),
                                 rollingInterval: RollingInterval.Day,
                                 outputTemplate: "{Timestamp:yyyy-MM-dd HH:mm:ss.fff zzz} [{Level:u3}] {Message:lj}{NewLine}{Exception}")
@@ -25,7 +26,7 @@ public class Program
                             .CreateLogger();
 
             Log.Information("Bitbucket MCP Server starting...");
-            Log.Information("Attempting to connect to Bitbucket and retrieve pull requests based on configuration...");
+            // Log.Information("Attempting to connect to Bitbucket and retrieve pull requests based on configuration...");
 
             string? GetConfigValue(string[] cliArgs, string cliParamShort, string cliParamLong, string envVarName, bool isSensitive = false)
             {
@@ -35,7 +36,7 @@ public class Program
                          string.Equals(cliArgs[i], cliParamLong, StringComparison.OrdinalIgnoreCase)) && i + 1 < cliArgs.Length)
                     {
                         string valueToLog = isSensitive ? "****" : cliArgs[i + 1];
-                        Log.Debug($"Found CLI parameter {cliArgs[i]} with value {valueToLog}");
+                        // Log.Debug($"Found CLI parameter {cliArgs[i]} with value {valueToLog}");
                         return cliArgs[i + 1];
                     }
                 }
@@ -43,7 +44,7 @@ public class Program
                 if (!string.IsNullOrEmpty(envValue))
                 {
                     string valueToLog = isSensitive ? "****" : envValue;
-                    Log.Debug($"Found environment variable {envVarName} with value {valueToLog}");
+                    // Log.Debug($"Found environment variable {envVarName} with value {valueToLog}");
                 }
                 return envValue;
             }
@@ -61,64 +62,35 @@ public class Program
 
             if (configMissing)
             {
-                Log.Warning("Skipping Bitbucket API interaction due to missing configuration. Please provide all required parameters.");
+                Log.Error("Skipping Bitbucket API interaction due to missing configuration. Please provide all required parameters.");
+                return 1;
             }
-            else
-            {
-                try
-                {
-                    var sharpBucket = new SharpBucketV2();
-                    // Null forgiveness operator used here because configMissing check ensures they are not null.
-                    sharpBucket.BasicAuthentication(bitbucketUsername!, bitbucketAppPassword!);
-                    
-                    // Validate authentication by fetching repositories
-                    Log.Information($"Attempting to access and verify repository: {accountName}/{repoSlug}");
-                    var repositoriesEndPoint = sharpBucket.RepositoriesEndPoint();
-                    var repositoryResource = repositoriesEndPoint.RepositoryResource(accountName!, repoSlug!);
 
-                    // Validate repository access by fetching repository details
+            // Create the DI container
+            //
+            var builder = Host.CreateApplicationBuilder(args);
 
-                    Repository? repositoryDetails = null;
-                    try
-                    {
-                        _ = await repositoryResource.GetRepositoryAsync();
-                    }
-                    catch (Exception ex)
-                    {
-                        Log.Error($"Unable to access repository: {accountName}/{repoSlug}. Error: {ex.Message}");
-                        return 1;
-                    }
+            // Add Serilog
+            //
+            builder.Services.AddSerilog();
 
-                    Log.Information($"Successfully accessed repository: {repositoryDetails?.full_name}");
 
-                    Log.Information("Proceeding to list pull requests...");
-                    // Corrected: Get PullRequestsResource first, then list pull requests
-                    var pullRequestsResource = repositoryResource.PullRequestsResource();
-                    List<PullRequest> pullRequests = pullRequestsResource.ListPullRequests();
+            // Add the BitBucketConfig and IBitbucketClientFactory to the DI container
+            //
+            builder.Services.AddSingleton(new BitBucketConfig(bitbucketUsername!, bitbucketAppPassword!, accountName!, repoSlug!));
+            builder.Services.AddScoped<IBitbucketClientFactory, BitbucketClientFactory>();
 
-                    if (pullRequests != null && pullRequests.Any())
-                    {
-                        Log.Information($"Found {pullRequests.Count} pull request(s) for {accountName}/{repoSlug}:");
-                        foreach (var pr in pullRequests)
-                        {
-                            // Corrected property names to lowercase based on the provided SharpBucket.V2.Pocos.PullRequest definition
-                            // Assuming User POCO (type of pr.author) has a 'display_name' property.
-                            Log.Information($"  - ID: {pr.id}, Title: \"{pr.title}\", Author: {pr.author?.display_name}, State: {pr.state}, Created: {pr.created_on}, Updated: {pr.updated_on}");
-                        }
-                    }
-                    else
-                    {
-                        Log.Information($"No pull requests found for {accountName}/{repoSlug} or unable to retrieve them.");
-                    }
-                }
-                catch (Exception ex)
-                {
-                    Log.Error($"An error occurred while interacting with Bitbucket: {ex.Message}");
-                    Log.Debug($"Stack Trace: {ex.StackTrace}"); // More detailed error for debugging
-                }
-            }
-            
-            Log.Information("Bitbucket MCP Server finished processing.");
+            // Add the McpServer to the DI container
+            //
+            builder.Services
+                .AddMcpServer()
+                .WithStdioServerTransport()
+                .WithTools<BitbucketMcpTools.PullRequestTools>();
+
+            // Build and Run the McpServer
+            //
+            Log.Information("Starting BitBucketMcpServer...");
+            builder.Build().Run();
             return 0;
         }
         catch (Exception ex)

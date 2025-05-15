@@ -77,6 +77,12 @@ To run the example server (ensure configuration is provided as above):
 dotnet run --project src/BitbucketMcpServer/BitbucketMcpServer.csproj
 ```
 
+## Build the standalone executable for local MCP
+
+```sh
+dotnet publish .\src\BitbucketMcpServer\BitbucketMcpServer.csproj -o publish
+```
+
 ## Dependencies
 
 * [SharpBucket](https://github.com/MitjaBezensek/SharpBucket): A .NET wrapper for the Bitbucket Cloud's REST APIs.
