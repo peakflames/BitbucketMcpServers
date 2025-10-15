@@ -16,14 +16,16 @@ public sealed partial class PullRequestTools
             "Gets all open pull requests in the Bitbucket repository. " +
             "Results is a Markdwon table containing the documents with the following columns: ID, Title, Author, State, Created, Updated."
          )]
-    public async Task<string> ListPullRequests()
+    public async Task<string> ListPullRequests(
+        [Description("The name of the Bitbucket repository to query.")]
+        string repoName)
     {
         string? returnMsg;
         
         await using (var scope = _serviceProvider.CreateAsyncScope())
         {
             var clientFactory = scope.ServiceProvider.GetRequiredService<IBitbucketClientFactory>();
-            var clientResult = await clientFactory.CreateClientAsync();
+            var clientResult = await clientFactory.CreateClientAsync(repoName);
             if (clientResult.IsFailed)
             {
                 return clientResult.Errors.First().ToString() ?? "Internal Error (35864) unknown error when creating Bitbucket client";

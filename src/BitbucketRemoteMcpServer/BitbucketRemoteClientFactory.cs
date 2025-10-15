@@ -6,16 +6,16 @@ namespace BitbucketRemoteMcpServer;
 
 public class BitbucketRemoteClientFactory : IBitbucketClientFactory
 {
-    private readonly List<BitbucketProjectConfig> _projectConfigs;
+    private readonly BitbucketProjectConfig _projectConfig;
     private readonly ILogger<BitbucketRemoteClientFactory> _logger;
     private readonly IHttpContextAccessor? _httpContextAccessor;
 
     public BitbucketRemoteClientFactory(
-        List<BitbucketProjectConfig> projectConfigs,
+        BitbucketProjectConfig projectConfig,
         ILogger<BitbucketRemoteClientFactory> logger,
         IHttpContextAccessor? httpContextAccessor)
     {
-        _projectConfigs = projectConfigs;
+        _projectConfig = projectConfig;
         _logger = logger;
         _httpContextAccessor = httpContextAccessor;
     }
@@ -24,51 +24,29 @@ public class BitbucketRemoteClientFactory : IBitbucketClientFactory
     public string? RepoSlug => _httpContextAccessor?.HttpContext?.GetRouteValue("repo_slug")?.ToString();
 
     [RequiresUnreferencedCode("Uses reflection")]
-    public async Task<Result<BitbucketClient>> CreateClientAsync()
+    public async Task<Result<BitbucketClient>> CreateClientAsync(string repoSlug)
     {
-        string? routeRepoSlug = RepoSlug;
-        _logger.LogDebug("Attempting to create Bitbucket client for requested Repo Slug: {RouteRepoSlug}", routeRepoSlug ?? "[Not Provided]");
-
-        BitbucketProjectConfig? selectedConfig = null;
-
-        // Try to find a configuration matching the route repo_slug (case-insensitive)
-        if (!string.IsNullOrEmpty(routeRepoSlug))
+        string? routeRepoSlug = repoSlug;
+        
+        // Validate that repo_slug is provided in the route
+        if (string.IsNullOrEmpty(routeRepoSlug))
         {
-            selectedConfig = _projectConfigs.FirstOrDefault(p =>
-                p.RepoSlug.Equals(routeRepoSlug, StringComparison.OrdinalIgnoreCase));
-
-            if (selectedConfig != null)
-            {
-                _logger.LogDebug("Found matching configuration for Repo Slug: {RepoSlug}", selectedConfig.RepoSlug);
-            }
+            var errorMessage = "Repository slug must cannot be empty";
+            _logger.LogError(errorMessage);
+            throw new InvalidOperationException(errorMessage);
         }
 
-        // If no specific match found, try to find the default configuration
-        if (selectedConfig == null)
-        {
-            selectedConfig = _projectConfigs.FirstOrDefault(p => p.Default);
-            if (selectedConfig != null)
-            {
-                _logger.LogDebug("Using default configuration for Repo Slug: {RepoSlug}", selectedConfig.RepoSlug);
-            }
-            else
-            {
-                // If still no config (neither specific nor default), throw an error
-                var errorMessage = $"Configuration error: No specific or default Bitbucket project configuration found for requested repo slug '{routeRepoSlug ?? "[Not Provided]"}'. Check appsettings.json.";
-                _logger.LogError(errorMessage);
-                throw new InvalidOperationException(errorMessage);
-            }
-        }
+        _logger.LogDebug("Creating Bitbucket client for Repo Slug: {RouteRepoSlug}", routeRepoSlug);
 
         // Resolve environment variables for sensitive data
-        string username = ResolveEnvironmentVariable(selectedConfig.Username, "Username");
-        string appPassword = ResolveEnvironmentVariable(selectedConfig.AppPassword, "AppPassword");
+        string username = ResolveEnvironmentVariable(_projectConfig.Username, "Username");
+        string appPassword = ResolveEnvironmentVariable(_projectConfig.AppPassword, "AppPassword");
 
         _logger.LogDebug("Creating Bitbucket client for Account: {AccountName}, Repo: {RepoSlug}, User: {Username}",
-            selectedConfig.AccountName, selectedConfig.RepoSlug, username);
+            _projectConfig.AccountName, routeRepoSlug, username);
 
-        // Create the BitbucketClient using the resolved values
-        var client = new BitbucketClient(username, appPassword, selectedConfig.AccountName, selectedConfig.RepoSlug);
+        // Create the BitbucketClient using the resolved values and route-provided repo slug
+        var client = new BitbucketClient(username, appPassword, _projectConfig.AccountName, routeRepoSlug);
         
         // Connect to Bitbucket
         var result = await client.ConnectAsync();
@@ -76,12 +54,12 @@ public class BitbucketRemoteClientFactory : IBitbucketClientFactory
         {
             var errorMessage = result.Errors.FirstOrDefault()?.Message ?? "Unknown error";
             _logger.LogError("Failed to create Bitbucket client for Account: {AccountName}, Repo: {RepoSlug}. Error: {ErrorMessage}",
-                selectedConfig.AccountName, selectedConfig.RepoSlug, errorMessage);
-            return Result.Fail($"Failed to create Bitbucket client for repo '{selectedConfig.RepoSlug}': {errorMessage}");
+                _projectConfig.AccountName, routeRepoSlug, errorMessage);
+            return Result.Fail($"Failed to create Bitbucket client for repo '{routeRepoSlug}': {errorMessage}");
         }
         
         _logger.LogDebug("Successfully created Bitbucket client for Account: {AccountName}, Repo: {RepoSlug}, FullName: {RepositoryFullName}",
-            selectedConfig.AccountName, selectedConfig.RepoSlug, client.RepositoryFullName);
+            _projectConfig.AccountName, routeRepoSlug, client.RepositoryFullName);
 
         return Result.Ok(client);
     }
