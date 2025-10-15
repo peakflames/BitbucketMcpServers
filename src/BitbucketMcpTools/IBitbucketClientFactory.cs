@@ -3,7 +3,5 @@ namespace BitbucketMcpTools;
 public interface IBitbucketClientFactory
 {
     [RequiresUnreferencedCode("Uses reflection")]
-    Task<Result<BitbucketClient>> CreateClientAsync();
-
-    string? RepoSlug { get; }
+    Task<Result<BitbucketClient>> CreateClientAsync(string repoSlug);
 }

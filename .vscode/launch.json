@@ -30,8 +30,8 @@
             },
             "env": {
                 "ASPNETCORE_ENVIRONMENT": "Development",
-                "BITBUCKET_MCP_0_USERNAME": "",
-                "BITBUCKET_MCP_0_API_TOKEN": "",
+                "BITBUCKET_MCP_USERNAME": "",
+                "BITBUCKET_MCP_API_TOKEN": ""
             },
             "console": "integratedTerminal"
         }

@@ -7,9 +7,9 @@ public class BitbucketClientFactory(BitBucketConfig config) : IBitbucketClientFa
     private readonly BitBucketConfig _config = config;
 
     [RequiresUnreferencedCode("Uses reflection")]
-    public async Task<Result<BitbucketClient>> CreateClientAsync()
+    public async Task<Result<BitbucketClient>> CreateClientAsync(string repoSlug)
     {
-        var bitbucketClient = new BitbucketClient(_config.BitbucketUsername, _config.BitbucketAppPassword, _config.AccountName, _config.RepoSlug);
+        var bitbucketClient = new BitbucketClient(_config.BitbucketUsername, _config.BitbucketAppPassword, _config.AccountName, repoSlug);
         var result = await bitbucketClient.ConnectAsync();
         if (result.IsFailed)
         {

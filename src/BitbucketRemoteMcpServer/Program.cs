@@ -35,32 +35,31 @@ public class Program
             var appConfig = builder.Configuration.Get<BitbucketAppConfig>() ??
                             throw new InvalidOperationException("Application configuration (BitbucketAppConfig) is missing or invalid.");
 
-            var bitbucketProjects = appConfig.BitbucketCloudConfig ??
+            var bitbucketConfig = appConfig.BitbucketCloudConfig ??
                                    throw new InvalidOperationException("BitbucketCloudConfig configuration section is missing or invalid within BitbucketAppConfig.");
 
-            // Validate the loaded project configurations
-            if (!bitbucketProjects.Any())
+            // Validate the loaded configuration
+            if (string.IsNullOrEmpty(bitbucketConfig.AccountName))
             {
-                throw new InvalidOperationException("No Bitbucket projects configured in BitbucketCloudConfig section.");
+                throw new InvalidOperationException("AccountName is required in BitbucketCloudConfig section.");
             }
-            if (bitbucketProjects.Count(p => p.Default) > 1)
+            if (string.IsNullOrEmpty(bitbucketConfig.Username))
             {
-                throw new InvalidOperationException("Multiple Bitbucket projects are marked as Default. Only one can be default.");
+                throw new InvalidOperationException("Username is required in BitbucketCloudConfig section.");
+            }
+            if (string.IsNullOrEmpty(bitbucketConfig.AppPassword))
+            {
+                throw new InvalidOperationException("AppPassword is required in BitbucketCloudConfig section.");
             }
 
-            // Log information about loaded projects
-            Log.Information("Loaded {Count} Bitbucket project configurations.", bitbucketProjects.Count);
-            foreach (var proj in bitbucketProjects)
-            {
-                Log.Information(" - Repo Slug: {RepoSlug}, Account: {AccountName}, Default: {IsDefault}",
-                    proj.RepoSlug, proj.AccountName, proj.Default);
-            }
+            // Log information about loaded configuration
+            Log.Information("Loaded Bitbucket configuration for Account: {AccountName}", bitbucketConfig.AccountName);
 
             // Add Serilog
             builder.Services.AddSerilog();
 
-            // Add the configurations and the factory to the DI container
-            builder.Services.AddSingleton(bitbucketProjects);
+            // Add the configuration and the factory to the DI container
+            builder.Services.AddSingleton(bitbucketConfig);
             builder.Services.AddScoped<IBitbucketClientFactory, BitbucketRemoteClientFactory>();
 
             // Add the McpServer to the DI container
@@ -74,7 +73,7 @@ public class Program
             var app = builder.Build();
 
             // Map MCP endpoints with route parameter
-            app.MapMcp("{repo_slug}");
+            app.MapMcp();
 
             app.Run();
 
