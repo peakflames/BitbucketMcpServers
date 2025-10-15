@@ -14,6 +14,22 @@
             "cwd": "${workspaceFolder}",
             "stopAtEntry": false,
             "console": "integratedTerminal"
+        },
+        {
+            "name": "BitbucketRemoteMcpServer",
+            "type": "coreclr",
+            "request": "launch",
+            "preLaunchTask": "build",
+            "program": "${workspaceFolder}/src/BitbucketRemoteMcpServer/bin/Debug/net9.0/win-x64/BitbucketRemoteMcpServer.dll",
+            "args": [],
+            "cwd": "${workspaceFolder}/src/BitbucketRemoteMcpServer",
+            "stopAtEntry": false,
+            "env": {
+                "ASPNETCORE_ENVIRONMENT": "Development",
+                "BITBUCKET_MCP_USERNAME": "",
+                "BITBUCKET_MCP_API_TOKEN": ""
+            },
+            "console": "integratedTerminal"
         }
     ]
 }
