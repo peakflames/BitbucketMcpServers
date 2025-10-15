@@ -1,11 +1,6 @@
 
 namespace BitbucketMcpTools;
 
-public interface IBitbucketClientFactory
-{
-    [RequiresUnreferencedCode("Uses reflection")]
-    Task<Result<BitbucketClient>> CreateClientAsync();
-}
 
 public class BitbucketClientFactory(BitBucketConfig config) : IBitbucketClientFactory
 {
@@ -23,4 +18,6 @@ public class BitbucketClientFactory(BitBucketConfig config) : IBitbucketClientFa
 
         return Result.Ok(bitbucketClient);
     }
+
+    public string? RepoSlug => "TBD"; // Placeholder; implement as needed
 }
