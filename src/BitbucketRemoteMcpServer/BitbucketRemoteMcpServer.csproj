@@ -12,7 +12,7 @@
     <Version>0.0.1</Version>
     <ContainerImageTag>0.0.1</ContainerImageTag>
     <EnableSdkContainerSupport>true</EnableSdkContainerSupport>
-    <ContainerRepository>peakflames/bibucket-remote-mcp-server</ContainerRepository>
+    <ContainerRepository>peakflames/bitbucket-remote-mcp-server</ContainerRepository>
 
     <!-- Size optimization -->
     <PublishSingleFile>true</PublishSingleFile>
