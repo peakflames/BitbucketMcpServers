@@ -24,10 +24,6 @@
             "args": [],
             "cwd": "${workspaceFolder}/src/BitbucketRemoteMcpServer",
             "stopAtEntry": false,
-            "serverReadyAction": {
-                "action": "openExternally",
-                "pattern": "\\bNow listening on:\\s+(https?://\\S+)"
-            },
             "env": {
                 "ASPNETCORE_ENVIRONMENT": "Development",
                 "BITBUCKET_MCP_USERNAME": "",
