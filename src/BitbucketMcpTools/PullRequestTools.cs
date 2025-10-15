@@ -11,9 +11,9 @@ public sealed partial class PullRequestTools
     }
 
     [RequiresUnreferencedCode("Uses Polarion API which requires reflection")]
-    [McpServerTool(Name = "list_pull_requests"), 
+    [McpServerTool(Name = "list_pull_open_requests"), 
         Description(
-            "Gets all the open and merged pull requests in the Bitbucket repository. " +
+            "Gets all open pull requests in the Bitbucket repository. " +
             "Results is a Markdwon table containing the documents with the following columns: ID, Title, Author, State, Created, Updated."
          )]
     public async Task<string> ListPullRequests()
@@ -46,7 +46,7 @@ public sealed partial class PullRequestTools
                 var parameters = new SharpBucket.V2.EndPoints.ListPullRequestsParameters
                 {
                     Sort = "id",
-                    States = [PullRequestState.Open, PullRequestState.Merged]
+                    States = [PullRequestState.Open],
                 };
                 var pullRequestsResource = bitBucketClient.RepositoryResource.PullRequestsResource();
                 List<PullRequest> pullRequests = pullRequestsResource.ListPullRequests(parameters);
@@ -58,8 +58,10 @@ public sealed partial class PullRequestTools
 
                 var markdownContents = new StringBuilder();
 
-                
+
                 markdownContents.AppendLine("# Pull Requests");
+                markdownContents.AppendLine();
+                markdownContents.AppendLine($"**Total Count**: {pullRequests.Count}");
                 markdownContents.AppendLine();
                 markdownContents.AppendLine($"| ID | Title | Author | State | Created | Updated |");
                 markdownContents.AppendLine($"| ---   | ---   | ---  | ------ |");
