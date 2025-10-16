@@ -1,0 +1,56 @@
+name: Build and Publish Docker Image
+
+on:
+  push:
+    tags:
+      - 'v*'  # Trigger on version tags like v0.0.1, v1.0.0, etc.
+
+jobs:
+  build-and-push:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Extract version from tag
+        id: get_version
+        run: |
+          # Remove 'v' prefix from tag to get version number
+          VERSION=${GITHUB_REF#refs/tags/v}
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "Building version: $VERSION"
+
+      - name: Set up .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '9.0.x'
+
+      - name: Log in to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Build and publish Docker container to Docker Hub
+        run: |
+          dotnet publish src/BitbucketRemoteMcpServer/BitbucketRemoteMcpServer.csproj \
+            /t:PublishContainer \
+            --os linux --arch x64 \
+            /p:Version=${{ steps.get_version.outputs.version }} \
+            /p:ContainerImageTag=${{ steps.get_version.outputs.version }} \
+            /p:ContainerRegistry=docker.io
+
+      - name: Tag and push latest tag
+        run: |
+          # Tag the image as latest
+          docker tag peakflames/bitbucket-remote-mcp-server:${{ steps.get_version.outputs.version }} \
+            peakflames/bitbucket-remote-mcp-server:latest
+          
+          # Push the latest tag
+          docker push peakflames/bitbucket-remote-mcp-server:latest
+
+      - name: Notify on failure
+        if: failure()
+        run: |
+          echo "::error::Docker build and push failed for version ${{ steps.get_version.outputs.version }}"
