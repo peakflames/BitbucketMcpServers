@@ -41,15 +41,6 @@ jobs:
             /p:ContainerImageTag=${{ steps.get_version.outputs.version }} \
             /p:ContainerRegistry=docker.io
 
-      - name: Tag and push latest tag
-        run: |
-          # Tag the image as latest
-          docker tag peakflames/bitbucket-remote-mcp-server:${{ steps.get_version.outputs.version }} \
-            peakflames/bitbucket-remote-mcp-server:latest
-          
-          # Push the latest tag
-          docker push peakflames/bitbucket-remote-mcp-server:latest
-
       - name: Notify on failure
         if: failure()
         run: |
