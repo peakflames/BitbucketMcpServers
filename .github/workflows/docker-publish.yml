@@ -41,6 +41,25 @@ jobs:
             /p:ContainerImageTag=${{ steps.get_version.outputs.version }} \
             /p:ContainerRegistry=docker.io
 
+      - name: Tag image as latest
+        run: |
+          # Pull the image that was just pushed
+          docker pull peakflames/bitbucket-remote-mcp-server:${{ steps.get_version.outputs.version }}
+          # Tag it as latest
+          docker tag peakflames/bitbucket-remote-mcp-server:${{ steps.get_version.outputs.version }} peakflames/bitbucket-remote-mcp-server:latest
+          # Push the latest tag
+          docker push peakflames/bitbucket-remote-mcp-server:latest
+
+      - name: Sync README to Docker Hub
+        uses: peter-evans/dockerhub-description@v4
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+          repository: peakflames/bitbucket-remote-mcp-server
+          short-description: ${{ github.event.repository.description }}
+          readme-filepath: ./README.md
+          enable-url-completion: true
+
       - name: Notify on failure
         if: failure()
         run: |
