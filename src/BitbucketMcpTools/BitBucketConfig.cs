@@ -1,3 +1,3 @@
 namespace BitbucketMcpTools;
 
-public record BitBucketConfig(string BitbucketUsername, string BitbucketAppPassword, string AccountName, string RepoSlug);
+public record BitBucketConfig(string AccountName, string RepoSlug, string? BitbucketUsername, string? BitbucketAppPassword, string? BitbucketConsumerKey, string? BitbucketSecretKey);

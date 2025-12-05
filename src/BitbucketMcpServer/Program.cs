@@ -77,7 +77,7 @@ public class Program
 
             // Add the BitBucketConfig and IBitbucketClientFactory to the DI container
             //
-            builder.Services.AddSingleton(new BitBucketConfig(bitbucketUsername!, bitbucketAppPassword!, accountName!, repoSlug!));
+            builder.Services.AddSingleton(new BitBucketConfig(accountName!, repoSlug!, bitbucketUsername!, bitbucketAppPassword!, null , null));
             builder.Services.AddScoped<IBitbucketClientFactory, BitbucketClientFactory>();
 
             // Add the McpServer to the DI container

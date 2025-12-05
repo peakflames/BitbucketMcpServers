@@ -41,26 +41,50 @@ public class Program
             // Resolve environment variables for sensitive credentials
             var username = Environment.GetEnvironmentVariable("BITBUCKET_MCP_USERNAME");
             var apiToken = Environment.GetEnvironmentVariable("BITBUCKET_MCP_API_TOKEN");
+            var consumerKey = Environment.GetEnvironmentVariable("BITBUCKET_MCP_CONSUMER_KEY");
+            var secretKey = Environment.GetEnvironmentVariable("BITBUCKET_MCP_SECRET_KEY");
 
-            if (string.IsNullOrWhiteSpace(username))
+
+            if (!string.IsNullOrWhiteSpace(username) || !string.IsNullOrWhiteSpace(apiToken))
             {
-                throw new InvalidOperationException(
-                    "Environment variable 'BITBUCKET_MCP_USERNAME' is not set. " +
-                    "Please set this environment variable with your Bitbucket username.");
+                if (string.IsNullOrWhiteSpace(username))
+                {
+                    throw new InvalidOperationException(
+                        "Environment variable 'BITBUCKET_MCP_USERNAME' is not set. " +
+                        "Please set this environment variable with your Bitbucket username.");
+                }
+
+                if (string.IsNullOrWhiteSpace(apiToken))
+                {
+                    throw new InvalidOperationException(
+                        "Environment variable 'BITBUCKET_MCP_API_TOKEN' is not set. " +
+                        "Please set this environment variable with your Bitbucket app password/API token.");
+                }
             }
-
-            if (string.IsNullOrWhiteSpace(apiToken))
+            else
             {
-                throw new InvalidOperationException(
-                    "Environment variable 'BITBUCKET_MCP_API_TOKEN' is not set. " +
-                    "Please set this environment variable with your Bitbucket app password/API token.");
+                if (string.IsNullOrWhiteSpace(consumerKey))
+                {
+                    throw new InvalidOperationException(
+                        "Environment variable 'BITBUCKET_MCP_CONSUMER_KEY' is not set. " +
+                        "Please set this environment variable with your Bitbucket consumer key.");
+                }
+
+                if (string.IsNullOrWhiteSpace(secretKey))
+                {
+                    throw new InvalidOperationException(
+                        "Environment variable 'BITBUCKET_MCP_SECRET_KEY' is not set. " +
+                        "Please set this environment variable with your Bitbucket secret key.");
+                }
             }
 
             Log.Information("Loaded environment variables for Bitbucket credentials successfully.");
 
             // Override config values with environment variables
-            bitbucketConfig.Username = username;
-            bitbucketConfig.AppPassword = apiToken;
+            bitbucketConfig.Username = username ?? string.Empty;
+            bitbucketConfig.AppPassword = apiToken ?? string.Empty;
+            bitbucketConfig.ConsumerKey = consumerKey ?? string.Empty;
+            bitbucketConfig.SecretKey = secretKey ?? string.Empty;
 
             // Validate the loaded configuration
             if (string.IsNullOrEmpty(bitbucketConfig.AccountName))

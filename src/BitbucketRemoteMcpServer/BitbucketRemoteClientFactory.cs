@@ -39,14 +39,16 @@ public class BitbucketRemoteClientFactory : IBitbucketClientFactory
         _logger.LogDebug("Creating Bitbucket client for Repo Slug: {RouteRepoSlug}", routeRepoSlug);
 
         // Use credentials that were resolved from environment variables at boot time in Program.cs
-        string username = _projectConfig.Username;
-        string appPassword = _projectConfig.AppPassword;
-
         _logger.LogDebug("Creating Bitbucket client for Account: {AccountName}, Repo: {RepoSlug}, User: {Username}",
-            _projectConfig.AccountName, routeRepoSlug, username);
+            _projectConfig.AccountName, routeRepoSlug, _projectConfig.Username);
 
         // Create the BitbucketClient using the resolved values and route-provided repo slug
-        var client = new BitbucketClient(username, appPassword, _projectConfig.AccountName, routeRepoSlug);
+        var client = new BitbucketClient(_projectConfig.AccountName,
+                                         routeRepoSlug,
+                                         _projectConfig.Username,
+                                         _projectConfig.AppPassword,
+                                         _projectConfig.ConsumerKey,
+                                         _projectConfig.SecretKey);
         
         // Connect to Bitbucket
         var result = await client.ConnectAsync();
