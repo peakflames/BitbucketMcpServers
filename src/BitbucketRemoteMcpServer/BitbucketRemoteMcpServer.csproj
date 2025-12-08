@@ -9,8 +9,8 @@
     <ImplicitUsings>enable</ImplicitUsings>
 
     <!-- Container Support -->
-    <Version>0.0.4</Version>
-    <ContainerImageTag>0.0.4</ContainerImageTag>
+    <Version>0.1.0</Version>
+    <ContainerImageTag>0.1.0</ContainerImageTag>
     <EnableSdkContainerSupport>true</EnableSdkContainerSupport>
     <ContainerRepository>peakflames/bitbucket-remote-mcp-server</ContainerRepository>
 
