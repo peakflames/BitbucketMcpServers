@@ -12,4 +12,9 @@ global using FluentResults;
 global using ModelContextProtocol.Server;
 
 global using BitbucketMcpTools;
+global using BitbucketMcpTools.Models;
+
+global using System.Text.Json;
+
+global using SharpBucket.V2.EndPoints;
 
