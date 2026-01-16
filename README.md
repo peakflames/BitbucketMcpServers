@@ -6,6 +6,7 @@ MCP Tools are available for Bitbucket operations, including:
 
 - `list_pull_open_requests`: Gets all open pull requests in a Bitbucket repository.
 - `get_pull_request_comments`: Gets comments for a specific pull request.
+- `get_pull_request_details`: Gets detailed information about a pull request including description, metadata, and changed files.
 
 ## Projects
 
