@@ -2,10 +2,17 @@ using SharpBucket.V2.EndPoints;
 
 namespace BitbucketMcpTools;
 
-public class BitbucketClient(string bitbucketUsername, string bitbucketAppPassword, string accountName, string repoSlug)
+public class BitbucketClient(string accountName,
+                             string repoSlug,
+                             string? bitbucketUsername,
+                             string? bitbucketAppPassword,
+                             string? bitbucektConsumerKey,
+                             string? bitbucketSecretKey)
 {
-    private readonly string _bitbucketUsername = bitbucketUsername;
-    private readonly string _bitbucketAppPassword = bitbucketAppPassword;
+    private readonly string? _bitbucketUsername = bitbucketUsername;
+    private readonly string? _bitbucketAppPassword = bitbucketAppPassword;
+    private readonly string? _bitbucektConsumerKey = bitbucektConsumerKey;
+    private readonly string? _bitbucketSecretKey = bitbucketSecretKey;
     private readonly string _accountName = accountName;
     private readonly string _repoSlug = repoSlug;
     private RepositoryResource? _repositoryResource;
@@ -17,8 +24,15 @@ public class BitbucketClient(string bitbucketUsername, string bitbucketAppPasswo
     public async Task<Result> ConnectAsync()
     {
         _sharpBucket = new SharpBucketV2();
-        // Null forgiveness operator used here because configMissing check ensures they are not null.
-        _sharpBucket.BasicAuthentication(_bitbucketUsername!, _bitbucketAppPassword!);
+        
+        if (!string.IsNullOrWhiteSpace(_bitbucektConsumerKey) && !string.IsNullOrWhiteSpace(_bitbucketSecretKey))
+        {
+            _sharpBucket.OAuth2ClientCredentials(_bitbucektConsumerKey, _bitbucketSecretKey);
+        }
+        else
+        {
+            _sharpBucket.BasicAuthentication(_bitbucketUsername!, _bitbucketAppPassword!);
+        }
 
         // Validate authentication by fetching repositories
         var repositoriesEndPoint = _sharpBucket.RepositoriesEndPoint();
