@@ -11,18 +11,16 @@ The application uses `appsettings.json` for configuration with a single set of c
 ```json
 {
   "BitbucketCloudConfig": {
-    "AccountName": "your-workspace",
-    "Username": "OBTAIN_FROM_ENV_VAR_BITBUCKET_MCP_USERNAME",
-    "AppPassword": "OBTAIN_FROM_ENV_VAR_BITBUCKET_MCP_API_TOKEN"
+    "AccountName": "your-workspace"
   }
 }
 ```
 
 ### Configuration Properties
 
-- **AccountName**: The Bitbucket workspace/account name
-- **Username**: Placeholder indicating which environment variable contains the username
-- **AppPassword**: Placeholder indicating which environment variable contains the API Key
+- **AccountName**: The Bitbucket workspace/account name (the only value stored in appsettings.json)
+- **Username**: Retrieved from the `BITBUCKET_MCP_USERNAME` environment variable at startup
+- **AppPassword**: Retrieved from the `BITBUCKET_MCP_API_TOKEN` environment variable at startup
 
 ### Environment Variables
 
@@ -77,11 +75,11 @@ https://your-mcp-server-url/
 
 ## How It Works
 
-1. **Configuration Loading**: On startup, the application loads the single configuration from `appsettings.json`
-2. **Environment Variable Resolution**: When a client factory is created, it resolves environment variables for sensitive data
+1. **Configuration Loading**: On startup, the application loads the AccountName from `appsettings.json`
+2. **Environment Variable Resolution**: At boot time in `Program.cs`, the application reads `BITBUCKET_MCP_USERNAME` and `BITBUCKET_MCP_API_TOKEN` environment variables and validates they are set
 3. **Tool Invocation**: When an MCP tool is called, the repository name is passed as a function argument
 4. **Client Creation**: A Bitbucket client is created using:
-   - The credentials from the configuration
+   - The credentials resolved from environment variables at startup
    - The account name from the configuration
    - The repository slug from the tool's function argument
 
@@ -91,7 +89,7 @@ https://your-mcp-server-url/
 
 ### "Environment variable not set" error
 - Ensure both `BITBUCKET_MCP_USERNAME` and `BITBUCKET_MCP_API_TOKEN` environment variables are set before starting the application
-- Check that the environment variable names in `appsettings.json` match the actual environment variable names
+- The application validates these at startup and will fail to start if they are not set
 
 ### Connection errors
 - Verify your Bitbucket credentials are correct
