@@ -1,7 +1,3 @@
-using System.Text.Json;
-using BitbucketMcpTools.Models;
-using SharpBucket.V2.EndPoints;
-
 namespace BitbucketMcpTools;
 
 public partial class PullRequestTools
