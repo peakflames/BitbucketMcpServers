@@ -38,15 +38,17 @@ public class BitbucketRemoteClientFactory : IBitbucketClientFactory
 
         _logger.LogDebug("Creating Bitbucket client for Repo Slug: {RouteRepoSlug}", routeRepoSlug);
 
-        // Resolve environment variables for sensitive data
-        string username = ResolveEnvironmentVariable(_projectConfig.Username, "Username");
-        string appPassword = ResolveEnvironmentVariable(_projectConfig.AppPassword, "AppPassword");
-
+        // Use credentials that were resolved from environment variables at boot time in Program.cs
         _logger.LogDebug("Creating Bitbucket client for Account: {AccountName}, Repo: {RepoSlug}, User: {Username}",
-            _projectConfig.AccountName, routeRepoSlug, username);
+            _projectConfig.AccountName, routeRepoSlug, _projectConfig.Username);
 
         // Create the BitbucketClient using the resolved values and route-provided repo slug
-        var client = new BitbucketClient(username, appPassword, _projectConfig.AccountName, routeRepoSlug);
+        var client = new BitbucketClient(_projectConfig.AccountName,
+                                         routeRepoSlug,
+                                         _projectConfig.Username,
+                                         _projectConfig.AppPassword,
+                                         _projectConfig.ConsumerKey,
+                                         _projectConfig.SecretKey);
         
         // Connect to Bitbucket
         var result = await client.ConnectAsync();
@@ -62,29 +64,5 @@ public class BitbucketRemoteClientFactory : IBitbucketClientFactory
             _projectConfig.AccountName, routeRepoSlug, client.RepositoryFullName);
 
         return Result.Ok(client);
-    }
-
-    private string ResolveEnvironmentVariable(string value, string fieldName)
-    {
-        const string envVarPrefix = "OBTAIN_FROM_ENV_VAR_";
-        
-        if (value.StartsWith(envVarPrefix, StringComparison.OrdinalIgnoreCase))
-        {
-            string envVarName = value.Substring(envVarPrefix.Length);
-            string? envValue = Environment.GetEnvironmentVariable(envVarName);
-            
-            if (string.IsNullOrEmpty(envValue))
-            {
-                var errorMessage = $"Environment variable '{envVarName}' for {fieldName} is not set or is empty.";
-                _logger.LogError(errorMessage);
-                throw new InvalidOperationException(errorMessage);
-            }
-            
-            _logger.LogDebug("Resolved {FieldName} from environment variable: {EnvVarName}", fieldName, envVarName);
-            return envValue;
-        }
-        
-        // If not an environment variable placeholder, return the value as-is
-        return value;
     }
 }

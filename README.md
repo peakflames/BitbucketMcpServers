@@ -1,95 +1,208 @@
-# Bitbucket MCP Server
+# Bitbucket MCP Servers
 
-This project contains an MCP (Model Context Protocol) server that can interact with Bitbucket.
+This repository contains Model Context Protocol (MCP) server implementations for Bitbucket Cloud integration.
 
-## BitbucketMcpServer Configuration
+MCP Tools are available for Bitbucket operations, including:
 
-The `BitbucketMcpServer` console application requires configuration to connect to your Bitbucket account and target repository. This configuration can be provided via command-line arguments or environment variables. Command-line arguments take precedence over environment variables.
+- `list_pull_open_requests`: Gets all open pull requests in a Bitbucket repository.
+- `get_pull_request_comments`: Gets comments for a specific pull request.
+- `get_pull_request_details`: Gets detailed information about a pull request including description, metadata, and changed files.
 
-## Building and Running
+## Projects
 
-To build the solution:
+- **BitbucketRemoteMcpServer**: ASP.NET Web API-based MCP server for server-based installations (Streamable HTTP or SSE transport)
+- **BitbucketMcpServer**: Console-based MCP server for local workstation installations (stdio transport)
 
-```sh
-dotnet build
-```
+## Running via Docker & Linux Server (Recommended)
 
-## Build the standalone executable for local MCP
+1. From your Linux server, create a directory for your configuration:
 
-```sh
-dotnet publish .\src\BitbucketMcpServer\BitbucketMcpServer.csproj -o publish
-```
+   ```bash
+   mkdir -p /opt/bitbucket-mcp-server
+   cd /opt/bitbucket-mcp-server
+   ```
 
-## Example Usage
+2. Pull the Docker image:
 
-### Cline Setup
+   ```bash
+   docker pull peakflames/bitbucket-remote-mcp-server
+   ```
 
-1. Build the standalone executable for local MCP
-1. Copy the standalone executable to a directory in your PATH
-1. Open the Cline MCP Configuation file (`cline_mcp_settings.json`) in Visual Studio Code.
-1. Add the following configuration:
+3. Create an `appsettings.json` file tailored to your Bitbucket configuration:
 
-    ```json
-    {
-        "Bitbucket": {
-            "autoApprove": [],
-            "disabled": false,
-            "timeout": 60,
-            "command": "BitbucketMcpServer",
-            "args": [
-                "-u",
-                "{{ bitbucket_username }}",
-                "-p",
-                "{{ bitbucket_app_password }}",
-                "-a",
-                "{{ bitbucket_account_name }}",
-                "-r",
-                "{{ bitbucket_repo_name }}"
-            ],
-            "transportType": "stdio"
-            }
-    }
-    ```
+   ```json
+   {
+     "BitbucketCloudConfig": {
+       "AccountName": "your-workspace-name"
+     }
+   }
+   ```
 
-## Building the Projects
+4. Run the Docker container with your chosen authentication method:
 
-### Prerequisites
+   **Using OAuth 2.0 (Recommended):**
+   ```bash
+   docker run -d \
+     --name bitbucket-mcp-server \
+     -p 8080:8080 \
+     -e BITBUCKET_MCP_CONSUMER_KEY="your_consumer_key" \
+     -e BITBUCKET_MCP_SECRET_KEY="your_secret_key" \
+     -v $(pwd)/appsettings.json:/app/appsettings.json \
+     peakflames/bitbucket-remote-mcp-server
+   ```
 
-- .NET 9.0 SDK or later
-- Docker (for container deployment)
+   **Using Basic Authentication:**
+   ```bash
+   docker run -d \
+     --name bitbucket-mcp-server \
+     -p 8080:8080 \
+     -e BITBUCKET_MCP_USERNAME="your_bitbucket_username" \
+     -e BITBUCKET_MCP_API_TOKEN="your_bitbucket_app_password" \
+     -v $(pwd)/appsettings.json:/app/appsettings.json \
+     peakflames/bitbucket-remote-mcp-server
+   ```
 
-### Building Locally
+5. The server should now be running. MCP clients will connect using:
+   - **Streamable HTTP Transport**: `http://{{your-server-ip}}:8080/`
+   - **SSE Transport**: `http://{{your-server-ip}}:8080/sse`
 
-To build the projects locally:
+### Configuration Options (`appsettings.json`)
 
+The server uses `appsettings.json` for configuration with a single set of credentials that can access any repository in your Bitbucket account.
+
+| Setting | Description | Required | Default |
+|---------|-------------|----------|---------|
+| `AccountName` | The Bitbucket workspace/account name | Yes | N/A |
+
+**Note:** Authentication credentials (either OAuth 2.0 or Basic Auth) are retrieved from environment variables at startup (see Environment Variables section below).
+
+### Environment Variables
+
+The server supports two authentication methods: **OAuth 2.0 Client Credentials** and **Basic Authentication**. You must configure one of these methods using environment variables.
+
+#### OAuth 2.0 Client Credentials (Recommended for Production)
+
+OAuth 2.0 provides more secure authentication for server-to-server communication and is recommended for production deployments.
+
+**Linux/macOS:**
 ```bash
-dotnet build BitbucketMcpServers.sln
+export BITBUCKET_MCP_CONSUMER_KEY="your_consumer_key"
+export BITBUCKET_MCP_SECRET_KEY="your_secret_key"
 ```
 
-### Building Docker Image
+**Windows (PowerShell):**
+```powershell
+$env:BITBUCKET_MCP_CONSUMER_KEY = "your_consumer_key"
+$env:BITBUCKET_MCP_SECRET_KEY = "your_secret_key"
+```
 
-1. Roll the version and image tag by setting the `Version` & `ContainerImageTag` properties in `src/BitbucketRemoteMcpServer/BitbucketRemoteMcpServer.csproj`
-1. Build the project and image locally:
+**Windows (Command Prompt):**
+```cmd
+set BITBUCKET_MCP_CONSUMER_KEY=your_consumer_key
+set BITBUCKET_MCP_SECRET_KEY=your_secret_key
+```
 
+**How to obtain OAuth 2.0 credentials:**
+1. Log in to your Bitbucket workspace
+2. Navigate to **Settings** > **OAuth consumers**
+3. Click **Add consumer**
+4. Configure the consumer with the necessary permissions (e.g., repositories read/write, pull requests)
+5. Save and note your Consumer Key and Consumer Secret
+
+#### Basic Authentication (Alternative Method)
+
+Basic authentication uses your Bitbucket username and app password. This method is simpler to set up but less secure for production use.
+
+**Linux/macOS:**
 ```bash
-dotnet publish src/BitbucketRemoteMcpServer/BitbucketRemoteMcpServer.csproj /t:PublishContainer -r linux-x64 
+export BITBUCKET_MCP_USERNAME="your_username"
+export BITBUCKET_MCP_API_TOKEN="your_app_password"
 ```
 
-### Publishing to a Docker Registry
-
-1. Roll the version and image tag by setting the `Version` & `ContainerImageTag` properties in `src/BitbucketRemoteMcpServer/BitbucketRemoteMcpServer.csproj`
-1. Build the project and image and publish to your Docker registry:
-
-```bash
-dotnet publish src/BitbucketRemoteMcpServer/BitbucketRemoteMcpServer.csproj /t:PublishContainer -r linux-x64 
-docker push peakflames/bitbucket-remote-mcp-server:{{VERSION}}
+**Windows (PowerShell):**
+```powershell
+$env:BITBUCKET_MCP_USERNAME = "your_username"
+$env:BITBUCKET_MCP_API_TOKEN = "your_app_password"
 ```
 
-## Debugging the Streamable HTTP MCP Server
+**Windows (Command Prompt):**
+```cmd
+set BITBUCKET_MCP_USERNAME=your_username
+set BITBUCKET_MCP_API_TOKEN=your_app_password
+```
 
-1. Start the MCP Server project
-1. From a terminal, run `npx @modelcontextprotocol/inspector`
-1. From you browser, navigate to `http://localhost:{{PORT}}`
-1. Configure the inspector to connect to the server
-   i. TransportType: streamable http
-   i. URL: http://localhost:5107/
+**How to create an app password:**
+1. Log in to Bitbucket
+2. Click your profile avatar > **Personal settings**
+3. Under **Access management**, click **App passwords**
+4. Click **Create app password**
+5. Give it a label and select the necessary permissions
+6. Copy the generated app password (you won't be able to see it again)
+
+#### Authentication Method Selection
+
+The server automatically determines which authentication method to use based on the environment variables you set:
+
+- **OAuth 2.0 is used** when `BITBUCKET_MCP_CONSUMER_KEY` and `BITBUCKET_MCP_SECRET_KEY` are set
+- **Basic Authentication is used** when `BITBUCKET_MCP_USERNAME` and `BITBUCKET_MCP_API_TOKEN` are set
+- You must provide **either** OAuth 2.0 credentials **or** Basic Auth credentials (not both)
+
+### How It Works
+
+1. **Configuration Loading**: On startup, the application loads the AccountName from `appsettings.json`
+2. **Environment Variable Resolution**: At boot time in `Program.cs`, the application reads the authentication credentials from environment variables:
+   - For OAuth 2.0: `BITBUCKET_MCP_CONSUMER_KEY` and `BITBUCKET_MCP_SECRET_KEY`
+   - For Basic Auth: `BITBUCKET_MCP_USERNAME` and `BITBUCKET_MCP_API_TOKEN`
+3. **Authentication Method Selection**: The server automatically selects OAuth 2.0 if consumer key/secret are provided, otherwise falls back to Basic Authentication
+4. **Tool Invocation**: When an MCP tool is called, the repository name is passed as a function argument
+5. **Client Creation**: A Bitbucket client is created using the credentials resolved from environment variables at startup and the repository slug from the tool's argument
+
+## Configuring MCP Clients
+
+### Cline Configuration
+
+1. Open Cline's MCP settings UI
+2. Click the "Remote Servers" tab
+3. Add the following configuration:
+
+   ```json
+   {
+     "mcpServers": {
+       "Bitbucket": {
+         "autoApprove": [],
+         "disabled": false,
+         "timeout": 60,
+         "url": "http://{{your-server-ip}}:8080/sse",
+         "transportType": "sse"
+       }
+     }
+   }
+   ```
+
+### Troubleshooting Remote Server
+
+**"Environment variable not set" error:**
+- For OAuth 2.0: Ensure both `BITBUCKET_MCP_CONSUMER_KEY` and `BITBUCKET_MCP_SECRET_KEY` are set
+- For Basic Auth: Ensure both `BITBUCKET_MCP_USERNAME` and `BITBUCKET_MCP_API_TOKEN` are set
+- The application validates the required credentials at startup and will fail to start if they are not properly configured
+- Make sure you're using one complete authentication method, not mixing variables from both
+
+**Connection errors:**
+- Verify your Bitbucket credentials are correct
+- For OAuth 2.0: Ensure the consumer key and secret are valid and the OAuth consumer is active in Bitbucket
+- For Basic Auth: Ensure the app password has the necessary permissions for the repositories you're accessing
+- Check that the account name in the configuration is correct
+- Verify that the repository name passed to the tool matches an actual repository in your account
+
+**Permission errors:**
+- For OAuth 2.0: Verify the OAuth consumer has the required scopes (e.g., repositories read/write, pull requests)
+- For Basic Auth: Ensure your app password has permissions for all repositories you need to access
+- Check that your Bitbucket user has access to the specified repository
+
+## Contributing
+
+For development setup, building instructions, Docker container publishing, and debugging information, see [CONTRIBUTING.md](CONTRIBUTING.md).
+
+## License
+
+See [LICENSE](LICENSE) for details.
