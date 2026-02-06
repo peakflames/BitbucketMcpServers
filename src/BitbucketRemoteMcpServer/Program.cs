@@ -1,5 +1,6 @@
 using System.Diagnostics.CodeAnalysis;
 using BitbucketMcpTools;
+using Microsoft.AspNetCore.HttpOverrides;
 using Serilog;
 
 namespace BitbucketRemoteMcpServer;
@@ -112,8 +113,42 @@ public class Program
             Log.Information("Starting BitbucketRemoteMcpServer...");
             var app = builder.Build();
 
-            // Map MCP endpoints with route parameter
-            app.MapMcp();
+            app.UseForwardedHeaders(new ForwardedHeadersOptions
+            {
+                ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto | ForwardedHeaders.XForwardedHost
+            });
+
+            // SSE stream disconnection workaround for Cline/TypeScript MCP SDK (streamableHttp only)
+            // The TypeScript MCP SDK has a bug where GET requests wait in a loop that can timeout.
+            // This middleware intercepts GET requests to streamableHttp endpoints and sends a dummy response.
+            // NOTE: This only applies to streamableHttp transport (GET /mcp), NOT legacy SSE (GET /sse)
+            app.Use(async (context, next) =>
+            {
+                // Only intercept GET requests for streamableHttp transport
+                var path = context.Request.Path.Value;
+                if (context.Request.Method == "GET" &&
+                    path != null &&
+                    !path.EndsWith("/sse") &&
+                    !path.EndsWith("/message") &&
+                    !path.Equals("/", StringComparison.Ordinal))
+                {
+                    Log.Debug("StreamableHttp workaround: Intercepting GET {Path}", context.Request.Path);
+
+                    context.Response.ContentType = "text/event-stream";
+                    context.Response.Headers.CacheControl = "no-cache";
+                    context.Response.Headers.Connection = "keep-alive";
+
+                    const string fakeResponseJson = """{"id":0,"jsonrpc":"2.0","result":{}}""";
+                    await context.Response.WriteAsync($"event: message\ndata: {fakeResponseJson}\n\n");
+                    return; // Short-circuit, don't call next middleware
+                }
+
+                await next();
+            });
+
+            // Map MCP endpoints
+            app.MapMcp();        // Root: /, /sse (default SSE transport)
+            app.MapMcp("mcp");   // /mcp (streamable HTTP transport for Cline)
 
             app.Run();
 
