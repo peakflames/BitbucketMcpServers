@@ -173,78 +173,12 @@ Update version and container tag in the csproj file's `Version` and `ContainerIm
 
 ## Release Protocol
 
-When the user requests "perform a release", follow this protocol:
+When the user requests "perform a release":
 
-### Prerequisites
-- Ensure you are on the `develop` branch
-- Verify all changes are committed and tests pass
-- Confirm the current version number from csproj files
+1. **Update CHANGELOG.md** - Change "Unreleased" to today's date, ensure all changes documented
+2. **Commit and push develop** - Add explicit files, commit with "Release version X.Y.Z" message
+3. **Merge to main** - `git checkout main && git merge develop --no-ff` with merge commit message, push
+4. **Tag and push** - `git tag -a vX.Y.Z -m "Release version X.Y.Z"`, push tag
+5. **Prepare next version** - Switch to develop, bump versions in both csproj files (Version and ContainerImageTag), add "Unreleased" section to CHANGELOG.md, commit "prepare for next development cycle (X.Y.Z+1)", push
 
-### Release Steps
-
-1. **Update CHANGELOG.md**
-   - Change "Unreleased" to today's date (YYYY-MM-DD)
-   - Ensure all changes are properly documented under Added/Changed/Fixed sections
-   - Verify the version number matches the csproj files
-
-2. **Commit and Push Develop**
-   ```bash
-   git add [explicit file paths]
-   git commit -m "Release version X.Y.Z
-
-   - Summary of key changes
-   - ...
-
-   Co-Authored-By: Claude Sonnet 4.5 <noreply@anthropic.com>"
-   git push origin develop
-   ```
-
-3. **Merge to Main**
-   ```bash
-   git checkout main
-   git pull origin main
-   git merge develop --no-ff -m "Merge branch 'develop' for release X.Y.Z
-
-   Release highlights:
-   - Key change 1
-   - Key change 2
-
-   Co-Authored-By: Claude Sonnet 4.5 <noreply@anthropic.com>"
-   git push origin main
-   ```
-
-4. **Create and Push Tag**
-   ```bash
-   git tag -a vX.Y.Z -m "Release version X.Y.Z
-
-   Highlights:
-   - Key change 1
-   - Key change 2
-   "
-   git push origin vX.Y.Z
-   ```
-
-5. **Prepare Develop for Next Version**
-   ```bash
-   git checkout develop
-   ```
-   - Bump version in `src/BitbucketMcpServer/BitbucketMcpServer.csproj`
-   - Bump version and container tag in `src/BitbucketRemoteMcpServer/BitbucketRemoteMcpServer.csproj`
-   - Add new "Unreleased" section in CHANGELOG.md with empty subsections
-   ```bash
-   git add [explicit file paths]
-   git commit -m "prepare for next development cycle (X.Y.Z+1)"
-   git push origin develop
-   ```
-
-### Version Numbering
-- Follow Semantic Versioning (MAJOR.MINOR.PATCH)
-- PATCH: Bug fixes, minor updates
-- MINOR: New features, backwards compatible
-- MAJOR: Breaking changes
-
-### Important Notes
-- Always use `--no-ff` when merging to preserve commit history
-- Always use explicit file paths in `git add` commands
-- Never commit `src/BitbucketRemoteMcpServer/appsettings.json`
-- Verify the release was successful by checking GitHub releases page
+Important: Use `--no-ff` for merges, explicit file paths in `git add`, never commit appsettings.json
