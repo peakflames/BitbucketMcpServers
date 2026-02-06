@@ -154,7 +154,7 @@ A successful build does NOT equal working code. The workflow should be:
 
 ## CRITICAL: appsettings.json Security
 
-**NEVER commit `src/BitbucketRemoteMcpServer/appsettings.json`** - it contains sensitive credentials.
+**NEVER commit `src/BitbucketRemoteMcpServer/appsettings*.json`** - it contains sensitive credentials.
 
 - Never use `git add` on this file
 - Never stage, reset, or checkout this file
@@ -177,8 +177,8 @@ When the user requests "perform a release":
 
 1. **Update CHANGELOG.md** - Change "Unreleased" to today's date, ensure all changes documented
 2. **Commit and push develop** - Add explicit files, commit with "Release version X.Y.Z" message
-3. **Merge to main** - `git checkout main && git merge develop --no-ff` with merge commit message, push
+3. **Merge to main** - `git checkout main && git pull && git merge develop --no-ff` with merge commit message, push
 4. **Tag and push** - `git tag -a vX.Y.Z -m "Release version X.Y.Z"`, push tag
 5. **Prepare next version** - Switch to develop, bump versions in both csproj files (Version and ContainerImageTag), add "Unreleased" section to CHANGELOG.md, commit "prepare for next development cycle (X.Y.Z+1)", push
 
-Important: Use `--no-ff` for merges, explicit file paths in `git add`, never commit appsettings.json
+Important: Use `--no-ff` for merges, explicit file paths in `git add`, never commit appsettings*.json
