@@ -5,13 +5,21 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [0.1.2] - Unreleased
-
-### Added
+## [0.1.2] - 2025-02-06
 
 ### Changed
+- Upgraded ModelContextProtocol SDK from 0.4.0-preview.2 to 0.7.0-preview.1
+- Upgraded ModelContextProtocol.AspNetCore SDK from 0.4.0-preview.2 to 0.7.0-preview.1
+
+### Added
+- Forwarded headers middleware support for reverse proxy compatibility
+- Streamable HTTP transport endpoint at `/mcp` for Cline compatibility
+- SSE stream disconnection workaround for Cline/TypeScript MCP SDK
+- Unicode output fix for Windows terminal in build.py script
 
 ### Fixed
+- MCP endpoint routing for streamableHttp transport
+- 404 errors when connecting Cline to /mcp endpoint
 
 ## [0.1.1] - 2025-01-16
 
