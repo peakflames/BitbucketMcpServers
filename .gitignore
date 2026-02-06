@@ -486,3 +486,6 @@ $RECYCLE.BIN/
 # Project specific
 dist/
 tmp/
+.bitbucket-mcp.pid
+*.log
+
