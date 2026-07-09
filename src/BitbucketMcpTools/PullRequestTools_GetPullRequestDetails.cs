@@ -8,7 +8,8 @@ public partial class PullRequestTools
     [McpServerTool(Name = "get_pull_request_details"),
         Description(
             "Gets detailed information about a specific pull request in the Bitbucket repository, " +
-            "including the PR description, metadata, and optionally the list of changed files. " +
+            "including the PR description, metadata (including draft status), and optionally the list " +
+            "of changed files. " +
             "Works for a pull request in any state (Open, Merged, Declined, or Superseded) as long as " +
             "the pull request ID is known. " +
             "Results is a Markdown document mixed with XML tags."
@@ -57,6 +58,8 @@ public partial class PullRequestTools
                 return $"ERROR: Pull request {pullRequestId} not found in repository {repoName}";
             }
 
+            var draftFlag = await GetDraftFlagAsync(bitBucketClient, pullRequestId);
+
             var markdownContents = new StringBuilder();
 
             // Format dates
@@ -66,7 +69,7 @@ public partial class PullRequestTools
             // Build PR metadata section
             markdownContents.AppendLine("# Pull Request Details");
             markdownContents.AppendLine();
-            markdownContents.AppendLine($"<PR_METADATA id='{pullRequest.id}' title='{EscapeXmlAttribute(pullRequest.title)}' state='{pullRequest.state}' author='{EscapeXmlAttribute(pullRequest.author?.display_name)}' source_branch='{EscapeXmlAttribute(pullRequest.source?.branch?.name)}' destination_branch='{EscapeXmlAttribute(pullRequest.destination?.branch?.name)}' created_on='{createdOn}' updated_on='{updatedOn}'>");
+            markdownContents.AppendLine($"<PR_METADATA id='{pullRequest.id}' title='{EscapeXmlAttribute(pullRequest.title)}' state='{pullRequest.state}' is_draft='{FormatDraft(draftFlag)}' author='{EscapeXmlAttribute(pullRequest.author?.display_name)}' source_branch='{EscapeXmlAttribute(pullRequest.source?.branch?.name)}' destination_branch='{EscapeXmlAttribute(pullRequest.destination?.branch?.name)}' created_on='{createdOn}' updated_on='{updatedOn}'>");
             markdownContents.AppendLine();
             markdownContents.AppendLine("## Description");
             markdownContents.AppendLine();
@@ -215,6 +218,127 @@ public partial class PullRequestTools
 
         return changedFiles;
     }
+
+    /// <summary>
+    /// Fetches the draft status of a single pull request via a restricted `fields` query,
+    /// since the SharpBucket PullRequest POCO does not expose the `draft` field.
+    /// </summary>
+    private static async Task<bool?> GetDraftFlagAsync(BitbucketClient client, int pullRequestId)
+    {
+        if (client.SharpBucket is not ISharpBucketRequesterV2 requester || string.IsNullOrEmpty(client.RepositoryFullName))
+        {
+            return null;
+        }
+
+        try
+        {
+            var relativeUrl = $"repositories/{client.RepositoryFullName}/pullrequests/{pullRequestId}?fields=draft";
+
+            var jsonContent = await requester.SendAsync(
+                HttpMethod.Get,
+                body: null,
+                relativeUrl: relativeUrl,
+                requestParameters: null,
+                token: CancellationToken.None);
+
+            var info = JsonSerializer.Deserialize(jsonContent, PullRequestJsonContext.Default.PullRequestDraftInfo);
+            return info?.Draft;
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"Error fetching draft flag for pull request {pullRequestId}: {ex.Message}");
+            return null;
+        }
+    }
+
+    /// <summary>
+    /// Fetches the draft status of pull requests matching the given `state` query
+    /// parameter(s), keyed by pull request id. Returns an empty map if the lookup fails,
+    /// since the SharpBucket PullRequest POCO does not expose the `draft` field.
+    /// When <paramref name="maxResults"/> is greater than 0, pagination stops once that many
+    /// flags have been collected, and <paramref name="sortField"/>/<paramref name="filter"/> are
+    /// applied so the fetched set matches the window of pull requests actually displayed.
+    /// </summary>
+    private static async Task<Dictionary<int, bool>> GetDraftFlagsAsync(
+        BitbucketClient client,
+        string stateQuery,
+        string? sortField = null,
+        int maxResults = 0,
+        string? filter = null)
+    {
+        var draftFlags = new Dictionary<int, bool>();
+
+        if (client.SharpBucket is not ISharpBucketRequesterV2 requester || string.IsNullOrEmpty(client.RepositoryFullName))
+        {
+            return draftFlags;
+        }
+
+        try
+        {
+            var pageLen = maxResults > 0 ? Math.Min(maxResults, 50) : 50;
+            var currentUrl = $"repositories/{client.RepositoryFullName}/pullrequests?{stateQuery}&fields=next,values.id,values.draft&pagelen={pageLen}";
+
+            if (!string.IsNullOrEmpty(sortField))
+            {
+                currentUrl += $"&sort={Uri.EscapeDataString(sortField)}";
+            }
+
+            if (!string.IsNullOrEmpty(filter))
+            {
+                currentUrl += $"&q={Uri.EscapeDataString(filter)}";
+            }
+
+            while (!string.IsNullOrEmpty(currentUrl))
+            {
+                var jsonContent = await requester.SendAsync(
+                    HttpMethod.Get,
+                    body: null,
+                    relativeUrl: currentUrl,
+                    requestParameters: null,
+                    token: CancellationToken.None);
+
+                var page = JsonSerializer.Deserialize(jsonContent, PullRequestJsonContext.Default.PullRequestDraftPage);
+
+                if (page?.Values is null)
+                {
+                    break;
+                }
+
+                foreach (var item in page.Values)
+                {
+                    if (item.Id is int id && item.Draft is bool draft)
+                    {
+                        draftFlags[id] = draft;
+                    }
+                }
+
+                if (maxResults > 0 && draftFlags.Count >= maxResults)
+                {
+                    break;
+                }
+
+                currentUrl = page.Next ?? string.Empty;
+            }
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"Error fetching draft flags for pull requests: {ex.Message}");
+            return new Dictionary<int, bool>();
+        }
+
+        return draftFlags;
+    }
+
+    /// <summary>
+    /// Renders a nullable draft flag as a human-readable string, degrading gracefully to
+    /// "unknown" when the draft lookup failed.
+    /// </summary>
+    private static string FormatDraft(bool? draft) => draft switch
+    {
+        true => "true",
+        false => "false",
+        null => "unknown",
+    };
 
     /// <summary>
     /// Formats a DateTime to a consistent string format.

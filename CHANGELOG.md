@@ -10,6 +10,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 - `list_pull_requests` tool to retrieve pull requests in any state (Open, Merged, Declined, Superseded),
   with optional state filtering and a result cap
+- Draft status surfaced in `list_pull_open_requests`, `list_pull_requests` (as a `Draft` column), and
+  `get_pull_request_details` (as `is_draft` in `<PR_METADATA>`). Fetched via a supplemental raw-JSON
+  request since the SharpBucket `PullRequest` POCO does not expose the `draft` field; degrades to
+  `?`/`unknown` if the lookup fails
 - New `RepositoryTools` partial class with read-only repository browsing and code search tools:
   - `read_file` - reads a file's raw contents at a given revision, with a configurable size cap and truncation notice
   - `list_directory` - shallow listing of files/directories at a given revision
