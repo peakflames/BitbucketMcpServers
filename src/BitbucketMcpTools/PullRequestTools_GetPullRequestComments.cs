@@ -3,9 +3,11 @@ namespace BitbucketMcpTools;
 public partial class PullRequestTools
 {  
     // [RequiresUnreferencedCode("Uses Polarion API which requires reflection")]
-    [McpServerTool(Name = "get_pull_request_comments"), 
+    [McpServerTool(Name = "get_pull_request_comments"),
         Description(
             "Gets all comments for a specific pull request in the Bitbucket repository. " +
+            "Works for a pull request in any state (Open, Merged, Declined, or Superseded) as long as " +
+            "the pull request ID is known. " +
             "Results is a Markdwon document mixed with XML tags."
          )]
     public async Task<string> GetPullRequestComments(
