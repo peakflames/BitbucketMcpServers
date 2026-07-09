@@ -9,6 +9,8 @@ public partial class PullRequestTools
         Description(
             "Gets detailed information about a specific pull request in the Bitbucket repository, " +
             "including the PR description, metadata, and optionally the list of changed files. " +
+            "Works for a pull request in any state (Open, Merged, Declined, or Superseded) as long as " +
+            "the pull request ID is known. " +
             "Results is a Markdown document mixed with XML tags."
         )]
     public async Task<string> GetPullRequestDetails(
