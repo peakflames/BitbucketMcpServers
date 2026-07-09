@@ -4,9 +4,12 @@ public partial class PullRequestTools
 {
     [McpServerTool(Name = "list_pull_requests"),
         Description(
-            "Gets pull requests in the Bitbucket repository filtered by state. " +
+            "Gets pull requests in the Bitbucket repository filtered by state, newest-updated first by default. " +
             "Unlike list_pull_open_requests, this tool can also retrieve Merged, Declined, and Superseded pull requests. " +
-            "Results is a Markdown table containing the following columns: ID, Title, Author, State, Created, Updated."
+            "Supports optional server-side filters (updatedSince, author, destinationBranch) so callers can pull recent or " +
+            "relevant pull requests directly from Bitbucket without over-fetching, which matters on repositories with " +
+            "thousands of pull requests. " +
+            "Results is a Markdown table containing the following columns: ID, Title, Author, State, Draft, Created, Updated."
          )]
     public async Task<string> ListPullRequests(
         [Description("The name of the Bitbucket repository to query.")]
@@ -17,7 +20,21 @@ public partial class PullRequestTools
         string state = "Open",
 
         [Description("The maximum number of pull requests to return. 0 returns all matching results. Default is 50.")]
-        int maxResults = 50)
+        int maxResults = 50,
+
+        [Description("Sort order: 'newest' (most recently updated first, default), 'oldest' (lowest ID first), " +
+            "or 'recently-created' (most recently created first). A raw Bitbucket sort field (e.g. '-created_on') " +
+            "is also accepted for advanced use.")]
+        string sort = "newest",
+
+        [Description("Only return pull requests updated on or after this date/time, e.g. '2025-01-01' or '2025-01-01T00:00:00Z'. Omit for no date filter.")]
+        string? updatedSince = null,
+
+        [Description("Only return pull requests authored by this user (Bitbucket account nickname). Omit for no author filter.")]
+        string? author = null,
+
+        [Description("Only return pull requests targeting this destination branch, e.g. 'main'. Omit for no branch filter.")]
+        string? destinationBranch = null)
     {
         string? returnMsg;
 
@@ -45,12 +62,15 @@ public partial class PullRequestTools
             try
             {
                 var states = ParsePullRequestStates(state);
+                var sortField = MapSort(sort);
+                var filter = BuildPullRequestFilter(updatedSince, author, destinationBranch);
 
                 var parameters = new SharpBucket.V2.EndPoints.ListPullRequestsParameters
                 {
-                    Sort = "id",
+                    Sort = sortField,
                     States = states,
                     Max = maxResults,
+                    Filter = filter,
                 };
                 var pullRequestsResource = bitBucketClient.RepositoryResource.PullRequestsResource();
                 List<PullRequest> pullRequests = pullRequestsResource.ListPullRequests(parameters);
@@ -60,18 +80,22 @@ public partial class PullRequestTools
                     return $"No pull requests found for {bitBucketClient.RepositoryFullName} matching state(s) '{state}' or unable to retrieve them.";
                 }
 
+                var stateQuery = string.Join("&", states.Select(s => $"state={s.ToString().ToUpperInvariant()}"));
+                var draftFlags = await GetDraftFlagsAsync(bitBucketClient, stateQuery, sortField, maxResults, filter);
+
                 var markdownContents = new StringBuilder();
 
                 markdownContents.AppendLine("# Pull Requests");
                 markdownContents.AppendLine();
                 markdownContents.AppendLine($"**Total Count**: {pullRequests.Count}");
                 markdownContents.AppendLine();
-                markdownContents.AppendLine($"| ID | Title | Author | State | Created | Updated |");
-                markdownContents.AppendLine($"| ---   | ---   | ---  | ------ | ------ | ------ |");
+                markdownContents.AppendLine($"| ID | Title | Author | State | Draft | Created | Updated |");
+                markdownContents.AppendLine($"| ---   | ---   | ---  | ------ | ------ | ------ | ------ |");
 
                 foreach (var pr in pullRequests)
                 {
-                    markdownContents.AppendLine($"| {pr.id} | {pr.title} | {pr.author?.display_name} | {pr.state} | {pr.created_on} | {pr.updated_on} |");
+                    var draftText = pr.id is int id && draftFlags.TryGetValue(id, out var isDraft) ? (isDraft ? "Yes" : "No") : "?";
+                    markdownContents.AppendLine($"| {pr.id} | {pr.title} | {pr.author?.display_name} | {pr.state} | {draftText} | {pr.created_on} | {pr.updated_on} |");
                 }
 
                 markdownContents.AppendLine();
@@ -111,5 +135,46 @@ public partial class PullRequestTools
         }
 
         return parsedStates.Count > 0 ? parsedStates : [PullRequestState.Open];
+    }
+
+    /// <summary>
+    /// Maps a friendly sort keyword to the Bitbucket sort field. A leading "-" means descending.
+    /// Unrecognized values are passed through unchanged so power users can supply a raw field.
+    /// </summary>
+    private static string MapSort(string sort)
+    {
+        return sort switch
+        {
+            "newest" => "-updated_on",
+            "oldest" => "id",
+            "recently-created" => "-created_on",
+            _ => sort,
+        };
+    }
+
+    /// <summary>
+    /// Builds a Bitbucket "q" query filter string by AND-ing together whichever of the
+    /// optional clauses are present. Returns null when no clause applies.
+    /// </summary>
+    private static string? BuildPullRequestFilter(string? updatedSince, string? author, string? destinationBranch)
+    {
+        var clauses = new List<string>();
+
+        if (!string.IsNullOrWhiteSpace(updatedSince))
+        {
+            clauses.Add($"updated_on >= {updatedSince.Trim()}");
+        }
+
+        if (!string.IsNullOrWhiteSpace(author))
+        {
+            clauses.Add($"author.nickname = \"{author.Trim()}\"");
+        }
+
+        if (!string.IsNullOrWhiteSpace(destinationBranch))
+        {
+            clauses.Add($"destination.branch.name = \"{destinationBranch.Trim()}\"");
+        }
+
+        return clauses.Count > 0 ? string.Join(" AND ", clauses) : null;
     }
 }

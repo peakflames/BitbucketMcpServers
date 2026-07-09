@@ -4,9 +4,10 @@ This repository contains Model Context Protocol (MCP) server implementations for
 
 MCP Tools are available for Bitbucket operations, including:
 
-- `list_pull_open_requests`: Gets all open pull requests in a Bitbucket repository.
+- `list_pull_open_requests`: Gets all open pull requests in a Bitbucket repository, including draft status.
+- `list_pull_requests`: Gets pull requests in a Bitbucket repository filtered by state (Open, Merged, Declined, Superseded), including draft status.
 - `get_pull_request_comments`: Gets comments for a specific pull request.
-- `get_pull_request_details`: Gets detailed information about a pull request including description, metadata, and changed files.
+- `get_pull_request_details`: Gets detailed information about a pull request including description, metadata (including draft status), and changed files.
 
 ## Projects
 
