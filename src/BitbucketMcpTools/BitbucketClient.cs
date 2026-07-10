@@ -55,5 +55,7 @@ public class BitbucketClient(string accountName,
 
     public RepositoryResource? RepositoryResource => _repositoryResource;
     public Repository? Repository => _repository;
-    public string? RepositoryFullName => _repositoryFullName;    
+    public string? RepositoryFullName => _repositoryFullName;
+    public string AccountName => _accountName;
+    public SharpBucketV2? SharpBucket => _sharpBucket;
 }

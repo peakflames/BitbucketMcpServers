@@ -107,7 +107,8 @@ public class Program
             builder.Services
                 .AddMcpServer()
                 .WithHttpTransport()
-                .WithTools<PullRequestTools>();
+                .WithTools<PullRequestTools>()
+                .WithTools<RepositoryTools>();
 
             // Build and Run the McpServer
             Log.Information("Starting BitbucketRemoteMcpServer...");

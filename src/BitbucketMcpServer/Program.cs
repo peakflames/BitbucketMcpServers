@@ -85,7 +85,8 @@ public class Program
             builder.Services
                 .AddMcpServer()
                 .WithStdioServerTransport()
-                .WithTools<BitbucketMcpTools.PullRequestTools>();
+                .WithTools<BitbucketMcpTools.PullRequestTools>()
+                .WithTools<BitbucketMcpTools.RepositoryTools>();
 
             // Build and Run the McpServer
             //
