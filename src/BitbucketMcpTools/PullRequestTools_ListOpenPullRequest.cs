@@ -7,7 +7,7 @@ public partial class PullRequestTools
     [McpServerTool(Name = "list_pull_open_requests"),
         Description(
             "Gets all open pull requests in the Bitbucket repository. " +
-            "Results is a Markdwon table containing the documents with the following columns: ID, Title, Author, State, Created, Updated."
+            "Results is a Markdown table containing the documents with the following columns: ID, Title, Author, State, Draft, Created, Updated."
          )]
     public async Task<string> ListOpenPullRequests(
         [Description("The name of the Bitbucket repository to query.")]
@@ -40,7 +40,7 @@ public partial class PullRequestTools
             {
                 var parameters = new SharpBucket.V2.EndPoints.ListPullRequestsParameters
                 {
-                    Sort = "id",
+                    Sort = "-updated_on",
                     States = [PullRequestState.Open],
                 };
                 var pullRequestsResource = bitBucketClient.RepositoryResource.PullRequestsResource();
@@ -51,6 +51,8 @@ public partial class PullRequestTools
                     return $"No pull requests found for {bitBucketClient.RepositoryFullName} or unable to retrieve them.";
                 }
 
+                var draftFlags = await GetDraftFlagsAsync(bitBucketClient, "state=OPEN");
+
                 var markdownContents = new StringBuilder();
 
 
@@ -58,12 +60,13 @@ public partial class PullRequestTools
                 markdownContents.AppendLine();
                 markdownContents.AppendLine($"**Total Count**: {pullRequests.Count}");
                 markdownContents.AppendLine();
-                markdownContents.AppendLine($"| ID | Title | Author | State | Created | Updated |");
-                markdownContents.AppendLine($"| ---   | ---   | ---  | ------ |");
+                markdownContents.AppendLine($"| ID | Title | Author | State | Draft | Created | Updated |");
+                markdownContents.AppendLine($"| ---   | ---   | ---  | ------ | ------ | ------ | ------ |");
 
                 foreach (var pr in pullRequests)
                 {
-                    markdownContents.AppendLine($"| {pr.id} | {pr.title} | {pr.author?.display_name} | {pr.state} | {pr.created_on} | {pr.updated_on} |");
+                    var draftText = pr.id is int id && draftFlags.TryGetValue(id, out var isDraft) ? (isDraft ? "Yes" : "No") : "?";
+                    markdownContents.AppendLine($"| {pr.id} | {pr.title} | {pr.author?.display_name} | {pr.state} | {draftText} | {pr.created_on} | {pr.updated_on} |");
                 }
 
                 markdownContents.AppendLine();
