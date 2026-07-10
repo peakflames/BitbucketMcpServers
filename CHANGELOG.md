@@ -5,6 +5,32 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.3] - 2026-07-10
+
+### Added
+- `list_pull_requests` tool to retrieve pull requests in any state (Open, Merged, Declined, Superseded),
+  with optional state filtering and a result cap
+- Draft status surfaced in `list_pull_open_requests`, `list_pull_requests` (as a `Draft` column), and
+  `get_pull_request_details` (as `is_draft` in `<PR_METADATA>`). Fetched via a supplemental raw-JSON
+  request since the SharpBucket `PullRequest` POCO does not expose the `draft` field; degrades to
+  `?`/`unknown` if the lookup fails
+- New `RepositoryTools` partial class with read-only repository browsing and code search tools:
+  - `read_file` - reads a file's raw contents at a given revision, with a configurable size cap and truncation notice
+  - `list_directory` - shallow listing of files/directories at a given revision
+  - `search_code` - searches code content across all repositories in the workspace
+  - `list_repositories` - lists repositories in the workspace, with optional name filtering
+  - `list_branches` - lists branches in a repository, with optional name filtering
+  - `list_commits` - lists commit history for a repository or branch
+  - `get_commit` - gets details for a single commit by hash
+
+### Changed
+- Clarified `get_pull_request_details` and `get_pull_request_comments` descriptions to note they work
+  for a pull request in any state, not just open ones
+- `BitbucketClient` now exposes the underlying `SharpBucketV2` instance and account name so workspace-scoped
+  tools (beyond the single configured repository) can be built
+
+### Fixed
+
 ## [0.1.2] - 2025-02-06
 
 ### Changed
