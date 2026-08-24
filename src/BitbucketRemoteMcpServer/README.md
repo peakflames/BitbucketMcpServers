@@ -51,6 +51,37 @@ export BITBUCKET_MCP_USERNAME="your_username"
 export BITBUCKET_MCP_API_TOKEN="your_app_password"
 ```
 
+## Optional: OAuth 2.1 Resource Server (`McpAuth`) and Access Control (`Access`)
+
+Both features are **disabled by default** — with no config, the server behaves exactly as it did
+before either existed. This is Phase 1 of a multi-phase rollout; per-user credential passthrough
+(a caller's own Bitbucket permissions, rather than the single shared credential above) is not yet
+implemented. `Access:DisabledTools` exists to hide/deny a small set of tools in the meantime.
+
+```jsonc
+"McpAuth": {
+  "Enabled": false,
+  "Issuer": "",              // e.g. https://issuer.okta.example.invalid/oauth2/<asid>
+  "MetadataAddress": null,   // optional override for the OIDC discovery document location
+  "ResourceUri": "",         // this server's own canonical URL, e.g. https://your-mcp-server-url/mcp
+  "ScopesSupported": ["bitbucket:read"],
+  "ClockSkewSeconds": 30
+},
+"Access": {
+  "Enabled": false,
+  "AuditOnly": false,        // when true, DisabledTools is evaluated but never actually blocks
+  "IdentityClaim": "email",  // reserved for a later phase; unused today
+  "DisabledTools": []        // tool names to hide from tools/list and deny on tools/call
+}
+```
+
+- `McpAuth:Issuer` must use `https` unless `ASPNETCORE_ENVIRONMENT=Development`.
+- `Access:Enabled` requires `McpAuth:Enabled` — without authentication there is no way to scope
+  `Access` to authenticated callers only, so the server refuses to start rather than apply it
+  unconditionally to everyone.
+- When `McpAuth:Enabled` is `true`, every `POST /mcp` call requires a valid bearer token issued by
+  `Issuer` with the `bitbucket:read` scope; the server never issues tokens itself.
+
 ## Using the MCP Server
 
 The application exposes MCP tools that accept a repository name as a parameter. The repository slug is provided as an argument when calling the tool, not in the URL path.

@@ -7,7 +7,8 @@ public class BitbucketClient(string accountName,
                              string? bitbucketUsername,
                              string? bitbucketAppPassword,
                              string? bitbucektConsumerKey,
-                             string? bitbucketSecretKey)
+                             string? bitbucketSecretKey,
+                             string? baseUrl = null)
 {
     private readonly string? _bitbucketUsername = bitbucketUsername;
     private readonly string? _bitbucketAppPassword = bitbucketAppPassword;
@@ -15,6 +16,7 @@ public class BitbucketClient(string accountName,
     private readonly string? _bitbucketSecretKey = bitbucketSecretKey;
     private readonly string _accountName = accountName;
     private readonly string _repoSlug = repoSlug;
+    private readonly string? _baseUrl = baseUrl;
     private RepositoryResource? _repositoryResource;
     private Repository? _repository;
     private string? _repositoryFullName;
@@ -23,8 +25,10 @@ public class BitbucketClient(string accountName,
     [RequiresUnreferencedCode("Uses reflection")]
     public async Task<Result> ConnectAsync()
     {
-        _sharpBucket = new SharpBucketV2();
-        
+        // baseUrl is a test-only seam (points SharpBucketV2 at a local fake server); production
+        // callers never pass it, so this is byte-identical to `new SharpBucketV2()` in prod.
+        _sharpBucket = _baseUrl is null ? new SharpBucketV2() : new SharpBucketV2(_baseUrl);
+
         if (!string.IsNullOrWhiteSpace(_bitbucektConsumerKey) && !string.IsNullOrWhiteSpace(_bitbucketSecretKey))
         {
             _sharpBucket.OAuth2ClientCredentials(_bitbucektConsumerKey, _bitbucketSecretKey);
