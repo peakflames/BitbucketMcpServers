@@ -9,8 +9,8 @@
     <ImplicitUsings>enable</ImplicitUsings>
 
     <!-- Container Support -->
-    <Version>0.1.4</Version>
-    <ContainerImageTag>0.1.4</ContainerImageTag>
+    <Version>0.2.0</Version>
+    <ContainerImageTag>0.2.0</ContainerImageTag>
     <EnableSdkContainerSupport>true</EnableSdkContainerSupport>
     <ContainerRepository>peakflames/bitbucket-remote-mcp-server</ContainerRepository>
 
@@ -34,10 +34,14 @@
   </ItemGroup>
 
   <ItemGroup>
-    <PackageReference Include="Polarion" Version="0.2.1"/>
+    <InternalsVisibleTo Include="BitbucketRemoteMcpServer.Tests" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="9.0.18" />
     <PackageReference Include="Microsoft.AspNetCore.OpenApi" Version="9.0.9" />
-    <PackageReference Include="ModelContextProtocol" Version="0.7.0-preview.1" />
-    <PackageReference Include="ModelContextProtocol.AspNetCore" Version="0.7.0-preview.1" />
+    <PackageReference Include="ModelContextProtocol" Version="2.1.0" />
+    <PackageReference Include="ModelContextProtocol.AspNetCore" Version="2.1.0" />
     <PackageReference Include="Serilog.Extensions.Hosting" Version="9.0.0" />
     <PackageReference Include="Serilog.Sinks.Console" Version="6.0.0" />
     <PackageReference Include="Serilog.Sinks.Debug" Version="3.0.0" />
@@ -48,11 +52,8 @@
     <ProjectReference Include="..\BitbucketMcpTools\BitbucketMcpTools.csproj" />
   </ItemGroup>
 
-  <ItemGroup>    
+  <ItemGroup>
     <TrimmerRootAssembly Include="Serilog" />
-    <TrimmerRootAssembly Include="ReverseMarkdown" />
-    <TrimmerRootAssembly Include="HtmlAgilityPack" />
-    <TrimmerRootAssembly Include="Polarion" />
   </ItemGroup>
 
 </Project>

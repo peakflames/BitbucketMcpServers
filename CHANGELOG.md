@@ -5,13 +5,51 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [0.1.4] - Unreleased
+## [0.2.0] - Unreleased
+
+SDK upgrade, stateless transport, a testability seam, and an optional OAuth 2.1 resource server in
+front of `/mcp` — disabled by default. No behavior change for existing callers who don't opt in,
+other than the transport removal below.
 
 ### Added
+- `McpAuth` config section: when `McpAuth:Enabled` is `true`, `POST /mcp` requires a bearer token
+  (RS256, validated issuer/audience/lifetime/signing key) issued by an external authorization
+  server, and the server answers unauthenticated requests with a 401 carrying an RFC 9728
+  `resource_metadata` challenge plus the corresponding `/.well-known/oauth-protected-resource/mcp`
+  document. The server never issues tokens itself — Okta (or any OIDC-compliant AS) is external.
+- `Access` config section: `Access:DisabledTools` hides the named tools from `tools/list` and
+  denies `tools/call` for them, for the transitional window where authentication exists but
+  per-user credential passthrough (a later phase) does not yet. Requires `McpAuth:Enabled`.
+- Test harness: `tests/BitbucketRemoteMcpServer.Tests`, `tests/StubAuthorizationServer` (mints
+  JWTs in-test, no network/Okta dependency), and `tests/Fakes` (a real local Bitbucket-shaped HTTP
+  server + a fake `IBitbucketClientFactory` for golden-output coverage, since SharpBucket has no
+  in-memory HTTP injection point). Test coverage: `AuthDisabledRegressionTests`,
+  `ChallengeAndDiscoveryTests`, `ResourceServerTokenValidationTests` (valid/expired/wrong-issuer/
+  wrong-audience/unsigned/unknown-signing-key tokens), `AccessDisabledToolsTests`
+- `python build.py test` to run the test suite
+- `BitbucketClient` accepts an optional `baseUrl` constructor parameter (test-only seam; `null`
+  in every production code path, so behavior is unchanged)
+- `BitbucketRemoteMcpServer.Program` exposes `BuildApp(args, configure, postAuthConfigure)` so
+  tests can drive the app via `UseTestServer()` instead of a real listener
 
 ### Changed
+- `ModelContextProtocol`/`ModelContextProtocol.AspNetCore` 0.7.0-preview.1 → 2.1.0 (all three
+  projects)
+- MCP HTTP transport is now stateless (`WithHttpTransport(o => o.Stateless = true)`) — no
+  `Mcp-Session-Id` is issued
+- Credential env vars (`BITBUCKET_MCP_USERNAME`, `BITBUCKET_MCP_API_TOKEN`,
+  `BITBUCKET_MCP_CONSUMER_KEY`, `BITBUCKET_MCP_SECRET_KEY`) are now read through
+  `IConfiguration` rather than `Environment.GetEnvironmentVariable` directly — same values at
+  runtime, but testable without mutating process-wide environment state
 
-### Fixed
+### Removed
+- **BREAKING:** the `/sse`, `/message`, and root `/` MCP mounts are gone. `/mcp` (Streamable
+  HTTP) is the only endpoint — update any client still pointed at the old URLs. `python build.py
+  mcp *` now connects to `/mcp`
+- The fake-SSE GET-request workaround middleware for the Cline/TypeScript MCP SDK bug — no
+  longer needed under the stateless transport
+- Dead `Polarion`/`ReverseMarkdown`/`HtmlAgilityPack` package references and trimmer roots in
+  `BitbucketRemoteMcpServer.csproj` (stale leftovers; this server has never depended on Polarion)
 
 ## [0.1.3] - 2026-07-10
 
