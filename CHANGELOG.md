@@ -7,9 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [0.2.0] - Unreleased
 
-SDK upgrade, stateless transport, a testability seam, and an optional OAuth 2.1 resource server in
-front of `/mcp` — disabled by default. No behavior change for existing callers who don't opt in,
-other than the transport removal below.
+SDK upgrade, stateless transport, a testability seam, and an optional OAuth 2.1 resource server —
+plus, on top of it, an optional token broker that resolves each caller's own Bitbucket credential
+instead of one shared identity. Both are disabled by default. No behavior change for existing
+callers who don't opt in, other than the transport removal and `Access` retirement below.
 
 ### Added
 - `McpAuth` config section: when `McpAuth:Enabled` is `true`, `POST /mcp` requires a bearer token
@@ -91,6 +92,12 @@ other than the transport removal below.
   actually workspace-wide operations; `IBitbucketClientFactory.CreateWorkspaceClientAsync()`
   validates the resolved credential against the workspace itself instead (`GET
   /workspaces/{workspace}`), so no repository name is needed to call either tool
+- The shared Bitbucket credential (`BITBUCKET_MCP_USERNAME`/`BITBUCKET_MCP_API_TOKEN` or the OAuth
+  2.0 client-credentials pair) is no longer required at boot when `Broker:Enabled` is `true` —
+  `BrokerCredentialResolver` resolves every caller's own credential per-request and never falls
+  back to a shared one, so a deployment running only the broker no longer needs a shared identity
+  to exist at all. Deployments not using the broker are unaffected; a shared credential is still
+  required as before.
 
 ### Removed
 - **BREAKING:** the `/sse`, `/message`, and root `/` MCP mounts are gone. `/mcp` (Streamable
@@ -100,6 +107,11 @@ other than the transport removal below.
   longer needed under the stateless transport
 - Dead `Polarion`/`ReverseMarkdown`/`HtmlAgilityPack` package references and trimmer roots in
   `BitbucketRemoteMcpServer.csproj` (stale leftovers; this server has never depended on Polarion)
+- **BREAKING:** `Access:DisabledTools` and the rest of the `Access` config section. It existed
+  only to hide `list_repositories`/`search_code` during the window between authentication landing
+  and per-user credential passthrough landing — that window is now closed, so the tools are back
+  and the config section is gone. An `Access:*` section left in a deployment's config is now
+  silently ignored rather than doing anything; remove it.
 
 ## [0.1.3] - 2026-07-10
 

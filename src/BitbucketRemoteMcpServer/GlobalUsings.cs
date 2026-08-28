@@ -5,7 +5,6 @@ global using System.Text;
 global using System.Text.Json;
 global using System.Text.Json.Serialization;
 global using BitbucketMcpTools;
-global using BitbucketRemoteMcpServer.Access;
 global using BitbucketRemoteMcpServer.Auth;
 global using BitbucketRemoteMcpServer.Broker;
 global using BitbucketRemoteMcpServer.Broker.Endpoints;
