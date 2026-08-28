@@ -13,8 +13,26 @@ public sealed class FakeBitbucketServer : IAsyncDisposable
     private readonly Dictionary<string, string> _repositories = new(StringComparer.Ordinal);
     private readonly Dictionary<string, string> _commits = new(StringComparer.Ordinal);
     private readonly Dictionary<string, string> _branches = new(StringComparer.Ordinal);
+    private readonly List<string> _authorizationHeaders = [];
+    private readonly Lock _authorizationHeadersLock = new();
 
     public string BaseUrl { get; private set; } = string.Empty;
+
+    /// <summary>
+    /// Every <c>Authorization</c> header value received so far, in arrival order. Lets a test
+    /// assert what SharpBucket actually put on the wire rather than what it was configured with.
+    /// Requests that carried no such header contribute nothing.
+    /// </summary>
+    public IReadOnlyList<string> AuthorizationHeaders
+    {
+        get
+        {
+            lock (_authorizationHeadersLock)
+            {
+                return [.. _authorizationHeaders];
+            }
+        }
+    }
 
     private FakeBitbucketServer(WebApplication app) => _app = app;
 
@@ -25,6 +43,19 @@ public sealed class FakeBitbucketServer : IAsyncDisposable
         builder.Logging.ClearProviders();
         var app = builder.Build();
         var server = new FakeBitbucketServer(app);
+
+        app.Use(async (context, next) =>
+        {
+            if (context.Request.Headers.TryGetValue("Authorization", out var authorization))
+            {
+                lock (server._authorizationHeadersLock)
+                {
+                    server._authorizationHeaders.Add(authorization.ToString());
+                }
+            }
+
+            await next(context);
+        });
 
         // No "/2.0" prefix here: SharpBucketV2(baseUrl) treats the whole baseUrl as the API
         // root (production's default already bakes "/2.0" into SharpBucketV2.BITBUCKET_URL), so
