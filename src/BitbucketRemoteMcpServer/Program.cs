@@ -48,9 +48,9 @@ public class Program
     /// <summary>
     /// Builds the app without running it, so tests can drive it via UseTestServer(). The
     /// `configure` callback runs before any DI registration below (used by tests to install
-    /// UseTestServer()/in-memory config/fakes); `postAuthConfigure` runs after AddMcpAuth/AddAccess
-    /// so tests can substitute a service (e.g. a fake IBitbucketClientFactory) without racing a
-    /// Replace() call either of those may perform.
+    /// UseTestServer()/in-memory config/fakes); `postAuthConfigure` runs after AddMcpAuth so
+    /// tests can substitute a service (e.g. a fake IBitbucketClientFactory) without racing a
+    /// Replace() call it may perform.
     /// </summary>
     [RequiresUnreferencedCode("Uses Bitbucket API which requires reflection")]
     public static WebApplication BuildApp(
@@ -80,36 +80,45 @@ public class Program
         var consumerKey = builder.Configuration["BITBUCKET_MCP_CONSUMER_KEY"];
         var secretKey = builder.Configuration["BITBUCKET_MCP_SECRET_KEY"];
 
-        if (!string.IsNullOrWhiteSpace(username) || !string.IsNullOrWhiteSpace(apiToken))
-        {
-            if (string.IsNullOrWhiteSpace(username))
-            {
-                throw new InvalidOperationException(
-                    "Environment variable 'BITBUCKET_MCP_USERNAME' is not set. " +
-                    "Please set this environment variable with your Bitbucket username.");
-            }
+        // With Broker:Enabled, BrokerCredentialResolver resolves every caller's own Bitbucket
+        // token and never falls back to this shared identity, so it is not required to boot.
+        // Without the broker, a shared credential is the only way any tool call authenticates,
+        // so it's required as before.
+        var brokerEnabledAtBoot = builder.Configuration.GetValue("Broker:Enabled", false);
 
-            if (string.IsNullOrWhiteSpace(apiToken))
-            {
-                throw new InvalidOperationException(
-                    "Environment variable 'BITBUCKET_MCP_API_TOKEN' is not set. " +
-                    "Please set this environment variable with your Bitbucket app password/API token.");
-            }
-        }
-        else
+        if (!brokerEnabledAtBoot)
         {
-            if (string.IsNullOrWhiteSpace(consumerKey))
+            if (!string.IsNullOrWhiteSpace(username) || !string.IsNullOrWhiteSpace(apiToken))
             {
-                throw new InvalidOperationException(
-                    "Environment variable 'BITBUCKET_MCP_CONSUMER_KEY' is not set. " +
-                    "Please set this environment variable with your Bitbucket consumer key.");
-            }
+                if (string.IsNullOrWhiteSpace(username))
+                {
+                    throw new InvalidOperationException(
+                        "Environment variable 'BITBUCKET_MCP_USERNAME' is not set. " +
+                        "Please set this environment variable with your Bitbucket username.");
+                }
 
-            if (string.IsNullOrWhiteSpace(secretKey))
+                if (string.IsNullOrWhiteSpace(apiToken))
+                {
+                    throw new InvalidOperationException(
+                        "Environment variable 'BITBUCKET_MCP_API_TOKEN' is not set. " +
+                        "Please set this environment variable with your Bitbucket app password/API token.");
+                }
+            }
+            else
             {
-                throw new InvalidOperationException(
-                    "Environment variable 'BITBUCKET_MCP_SECRET_KEY' is not set. " +
-                    "Please set this environment variable with your Bitbucket secret key.");
+                if (string.IsNullOrWhiteSpace(consumerKey))
+                {
+                    throw new InvalidOperationException(
+                        "Environment variable 'BITBUCKET_MCP_CONSUMER_KEY' is not set. " +
+                        "Please set this environment variable with your Bitbucket consumer key.");
+                }
+
+                if (string.IsNullOrWhiteSpace(secretKey))
+                {
+                    throw new InvalidOperationException(
+                        "Environment variable 'BITBUCKET_MCP_SECRET_KEY' is not set. " +
+                        "Please set this environment variable with your Bitbucket secret key.");
+                }
             }
         }
 
@@ -150,11 +159,8 @@ public class Program
             .WithTools<PullRequestTools>()
             .WithTools<RepositoryTools>();
 
-        // Both disabled by default: McpAuth adds an OAuth 2.1 resource-server gate in front of
-        // /mcp; Access hides/denies the tools named in Access:DisabledTools during the
-        // transitional window before a later phase's per-user credential passthrough lands.
+        // Disabled by default: McpAuth adds an OAuth 2.1 resource-server gate in front of /mcp.
         var authEnabled = builder.AddMcpAuth();
-        builder.AddAccess();
 
         // Also disabled by default: the token-broker storage layer, and the authorization-server
         // endpoints (/authorize, /oauth/callback, /token, DCR built-but-disabled) built on top of

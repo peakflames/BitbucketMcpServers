@@ -11,7 +11,7 @@ MCP Tools are available for Bitbucket operations, including:
 
 ## Projects
 
-- **BitbucketRemoteMcpServer**: ASP.NET Web API-based MCP server for server-based installations (Streamable HTTP or SSE transport)
+- **BitbucketRemoteMcpServer**: ASP.NET Web API-based MCP server for server-based installations (Streamable HTTP transport)
 - **BitbucketMcpServer**: Console-based MCP server for local workstation installations (stdio transport)
 
 ## Running via Docker & Linux Server (Recommended)
@@ -64,8 +64,7 @@ MCP Tools are available for Bitbucket operations, including:
    ```
 
 5. The server should now be running. MCP clients will connect using:
-   - **Streamable HTTP Transport**: `http://{{your-server-ip}}:8080/`
-   - **SSE Transport**: `http://{{your-server-ip}}:8080/sse`
+   - **Streamable HTTP Transport**: `http://{{your-server-ip}}:8080/mcp`
 
 ### Configuration Options (`appsettings.json`)
 
@@ -173,8 +172,8 @@ The server automatically determines which authentication method to use based on 
          "autoApprove": [],
          "disabled": false,
          "timeout": 60,
-         "url": "http://{{your-server-ip}}:8080/sse",
-         "transportType": "sse"
+         "url": "http://{{your-server-ip}}:8080/mcp",
+         "transportType": "streamableHttp"
        }
      }
    }

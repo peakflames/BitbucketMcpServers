@@ -37,8 +37,7 @@ python build.py log --level error        # Filter by level (error/warn/info/debu
 ```
 
 ### URLs (when running)
-- http://localhost:5107 - Landing page
-- http://localhost:5107/sse - MCP SSE endpoint
+- http://localhost:5107/mcp - MCP Streamable HTTP endpoint (sole endpoint; `/sse`, `/message`, and root `/` were removed)
 
 ### Prerequisites
 ```bash
@@ -68,11 +67,11 @@ src/
 
 **Client Factory Pattern**: `IBitbucketClientFactory` creates `BitbucketClient` instances. Two implementations:
 - `BitbucketClientFactory`: For stdio server, uses CLI args/env vars for single repo config
-- `BitbucketRemoteClientFactory`: For HTTP server, resolves credentials from appsettings with `OBTAIN_FROM_ENV_VAR_` prefix pattern for sensitive values
+- `BitbucketRemoteClientFactory`: For HTTP server, resolves credentials via `IConfiguration` (env vars `BITBUCKET_MCP_USERNAME`/`BITBUCKET_MCP_API_TOKEN` or `BITBUCKET_MCP_CONSUMER_KEY`/`BITBUCKET_MCP_SECRET_KEY`), or per-caller from the token broker when `Broker:Enabled` is true
 
 **Configuration**:
 - Stdio server: CLI args (`-u`, `-p`, `-a`, `-r`) or env vars (`BITBUCKET_USERNAME`, `BITBUCKET_APP_PASSWORD`, `BITBUCKET_ACCOUNT_NAME`, `BITBUCKET_REPO_SLUG`)
-- Remote server: `appsettings.json` with `BitbucketCloudConfig` section; env vars `BITBUCKET_MCP_USERNAME` and `BITBUCKET_MCP_API_TOKEN`
+- Remote server: `appsettings.json` with `BitbucketCloudConfig` section; env vars `BITBUCKET_MCP_USERNAME`/`BITBUCKET_MCP_API_TOKEN` (or the OAuth 2.0 client-credentials pair) — not required when `Broker:Enabled` is true, since every tool call then resolves its own caller's credential instead of a shared one
 
 ### Dependencies
 
@@ -152,20 +151,21 @@ A successful build does NOT equal working code. The workflow should be:
 - Prefer `--no-ff` when merging to preserve commit history
 - Use explicit file paths in `git add` commands rather than wildcards
 
-## CRITICAL: appsettings.json Security
+## appsettings.json Security
 
-**NEVER commit `src/BitbucketRemoteMcpServer/appsettings*.json`** - it contains sensitive credentials.
-
-- Never use `git add` on this file
-- Never stage, reset, or checkout this file
-- Use explicit file paths in git commands to avoid accidentally including it
+`src/BitbucketRemoteMcpServer/appsettings*.json` is tracked and safe to commit — by design it only
+ever holds non-secret values (`AccountName`, `Broker:*` toggles, `McpAuth:*` toggles). Every
+sensitive value (credentials, OAuth consumer key/secret, JWT signing material) is resolved through
+`IConfiguration` from environment variables at boot, never written to this file. Before committing
+it, double-check no one has hand-added a real secret value inline — that would be the actual
+mistake this rule exists to catch, not the file's mere presence in git.
 
 ## Debugging
 
 Debug the streamable HTTP server using MCP Inspector:
 1. Start `BitbucketRemoteMcpServer`
 2. Run `npx @modelcontextprotocol/inspector`
-3. Connect with TransportType: streamable http, URL: http://localhost:5107/
+3. Connect with TransportType: streamable http, URL: http://localhost:5107/mcp
 
 ## Version Management
 
@@ -181,4 +181,4 @@ When the user requests "perform a release":
 4. **Tag and push** - `git tag -a vX.Y.Z -m "Release version X.Y.Z"`, push tag
 5. **Prepare next version** - Switch to develop, bump versions in both csproj files (Version and ContainerImageTag), add "Unreleased" section to CHANGELOG.md, commit "prepare for next development cycle (X.Y.Z+1)", push
 
-Important: Use `--no-ff` for merges, explicit file paths in `git add`, never commit appsettings*.json
+Important: Use `--no-ff` for merges, explicit file paths in `git add`, never hand-add a real secret value to appsettings*.json
