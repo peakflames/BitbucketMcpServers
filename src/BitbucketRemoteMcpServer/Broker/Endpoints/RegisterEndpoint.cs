@@ -46,13 +46,11 @@ public static class RegisterEndpoint
 
         var authMethod = string.IsNullOrWhiteSpace(body.TokenEndpointAuthMethod) ? "none" : body.TokenEndpointAuthMethod;
 
-        string? clientSecret = null;
-        string? clientSecretHash = null;
-        if (!string.Equals(authMethod, "none", StringComparison.Ordinal))
-        {
-            clientSecret = PkceHelper.GenerateOpaqueSecret();
-            clientSecretHash = TokenHashing.Hash(clientSecret);
-        }
+        // Issued to every client, including "none"/public ones: PKCE (verified at /token) is
+        // this broker's only confidentiality mechanism regardless of authMethod, but some DCR
+        // clients (e.g. Claude Code) reject a registration response whose client_secret is null.
+        var clientSecret = PkceHelper.GenerateOpaqueSecret();
+        var clientSecretHash = TokenHashing.Hash(clientSecret);
 
         var clientId = Guid.NewGuid().ToString("N");
         var now = DateTimeOffset.UtcNow;
