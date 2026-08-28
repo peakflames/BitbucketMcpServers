@@ -86,6 +86,11 @@ other than the transport removal below.
   `BITBUCKET_MCP_CONSUMER_KEY`, `BITBUCKET_MCP_SECRET_KEY`) are now read through
   `IConfiguration` rather than `Environment.GetEnvironmentVariable` directly — same values at
   runtime, but testable without mutating process-wide environment state
+- **BREAKING:** `list_repositories` and `search_code` no longer take a `repoName` parameter. It
+  existed only to bootstrap a credential against an arbitrary named repository for what are
+  actually workspace-wide operations; `IBitbucketClientFactory.CreateWorkspaceClientAsync()`
+  validates the resolved credential against the workspace itself instead (`GET
+  /workspaces/{workspace}`), so no repository name is needed to call either tool
 
 ### Removed
 - **BREAKING:** the `/sse`, `/message`, and root `/` MCP mounts are gone. `/mcp` (Streamable

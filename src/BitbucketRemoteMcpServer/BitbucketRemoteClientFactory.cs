@@ -36,18 +36,28 @@ public class BitbucketRemoteClientFactory : IBitbucketClientFactory
     [RequiresUnreferencedCode("Uses reflection")]
     public async Task<Result<BitbucketClient>> CreateClientAsync(string repoSlug)
     {
-        string? routeRepoSlug = repoSlug;
-        
         // Validate that repo_slug is provided in the route
-        if (string.IsNullOrEmpty(routeRepoSlug))
+        if (string.IsNullOrEmpty(repoSlug))
         {
             var errorMessage = "Repository slug must cannot be empty";
             _logger.LogError(errorMessage);
             throw new InvalidOperationException(errorMessage);
         }
 
-        _logger.LogDebug("Creating Bitbucket client for Repo Slug: {RouteRepoSlug}", routeRepoSlug);
+        _logger.LogDebug("Creating Bitbucket client for Repo Slug: {RepoSlug}", repoSlug);
+        return await CreateClientAsync(repoSlug, scopeDescription: $"Repo: {repoSlug}");
+    }
 
+    [RequiresUnreferencedCode("Uses reflection")]
+    public async Task<Result<BitbucketClient>> CreateWorkspaceClientAsync()
+    {
+        _logger.LogDebug("Creating workspace-scoped Bitbucket client for Account: {AccountName}", _projectConfig.AccountName);
+        return await CreateClientAsync(repoSlug: null, scopeDescription: $"Workspace: {_projectConfig.AccountName}");
+    }
+
+    [RequiresUnreferencedCode("Uses reflection")]
+    private async Task<Result<BitbucketClient>> CreateClientAsync(string? repoSlug, string scopeDescription)
+    {
         // SharedCredentialResolver (the default, Broker disabled) always returns null here, so
         // this is a no-op fall-through to the shared service credential below — byte-identical to
         // today's behavior. BrokerCredentialResolver (Broker enabled) resolves the calling user's
@@ -57,20 +67,19 @@ public class BitbucketRemoteClientFactory : IBitbucketClientFactory
         {
             var credentialError = credentialResult.Errors.FirstOrDefault()?.Message ?? "Unknown error";
             _logger.LogWarning(
-                "Failed to resolve upstream Bitbucket credential for Repo: {RepoSlug}. Error: {ErrorMessage}",
-                routeRepoSlug, credentialError);
+                "Failed to resolve upstream Bitbucket credential for {ScopeDescription}. Error: {ErrorMessage}",
+                scopeDescription, credentialError);
             return Result.Fail(credentialError);
         }
 
         var accessToken = credentialResult.Value;
 
         // Use credentials that were resolved from environment variables at boot time in Program.cs
-        _logger.LogDebug("Creating Bitbucket client for Account: {AccountName}, Repo: {RepoSlug}, User: {Username}",
-            _projectConfig.AccountName, routeRepoSlug, _projectConfig.Username);
+        _logger.LogDebug("Creating Bitbucket client for Account: {AccountName}, {ScopeDescription}, User: {Username}",
+            _projectConfig.AccountName, scopeDescription, _projectConfig.Username);
 
-        // Create the BitbucketClient using the resolved values and route-provided repo slug
         var client = new BitbucketClient(_projectConfig.AccountName,
-                                         routeRepoSlug,
+                                         repoSlug,
                                          _projectConfig.Username,
                                          _projectConfig.AppPassword,
                                          _projectConfig.ConsumerKey,
@@ -83,13 +92,13 @@ public class BitbucketRemoteClientFactory : IBitbucketClientFactory
         if (result.IsFailed)
         {
             var errorMessage = result.Errors.FirstOrDefault()?.Message ?? "Unknown error";
-            _logger.LogError("Failed to create Bitbucket client for Account: {AccountName}, Repo: {RepoSlug}. Error: {ErrorMessage}",
-                _projectConfig.AccountName, routeRepoSlug, errorMessage);
-            return Result.Fail($"Failed to create Bitbucket client for repo '{routeRepoSlug}': {errorMessage}");
+            _logger.LogError("Failed to create Bitbucket client for Account: {AccountName}, {ScopeDescription}. Error: {ErrorMessage}",
+                _projectConfig.AccountName, scopeDescription, errorMessage);
+            return Result.Fail($"Failed to create Bitbucket client for {scopeDescription}: {errorMessage}");
         }
-        
-        _logger.LogDebug("Successfully created Bitbucket client for Account: {AccountName}, Repo: {RepoSlug}, FullName: {RepositoryFullName}",
-            _projectConfig.AccountName, routeRepoSlug, client.RepositoryFullName);
+
+        _logger.LogDebug("Successfully created Bitbucket client for Account: {AccountName}, {ScopeDescription}, FullName: {RepositoryFullName}",
+            _projectConfig.AccountName, scopeDescription, client.RepositoryFullName);
 
         return Result.Ok(client);
     }

@@ -3,7 +3,7 @@ using SharpBucket.V2.EndPoints;
 namespace BitbucketMcpTools;
 
 public class BitbucketClient(string accountName,
-                             string repoSlug,
+                             string? repoSlug,
                              string? bitbucketUsername,
                              string? bitbucketAppPassword,
                              string? bitbucektConsumerKey,
@@ -17,7 +17,7 @@ public class BitbucketClient(string accountName,
     private readonly string? _bitbucketSecretKey = bitbucketSecretKey;
     private readonly string? _accessToken = accessToken;
     private readonly string _accountName = accountName;
-    private readonly string _repoSlug = repoSlug;
+    private readonly string? _repoSlug = repoSlug;
     private readonly string? _baseUrl = baseUrl;
     private RepositoryResource? _repositoryResource;
     private Repository? _repository;
@@ -44,6 +44,23 @@ public class BitbucketClient(string accountName,
         else
         {
             _sharpBucket.BasicAuthentication(_bitbucketUsername!, _bitbucketAppPassword!);
+        }
+
+        // Workspace-scoped tools (list_repositories, search_code) have no single repo to bootstrap
+        // credentials against, so repoSlug is null for them — validate the credential against the
+        // workspace itself instead of faking a repo just to exercise the connection.
+        if (string.IsNullOrEmpty(_repoSlug))
+        {
+            try
+            {
+                await _sharpBucket.WorkspacesEndPoint().WorkspaceResource(_accountName).GetWorkspaceAsync();
+            }
+            catch (Exception ex)
+            {
+                return Result.Fail($"Unable to access workspace: {_accountName}. Error: {ex.Message}");
+            }
+
+            return Result.Ok();
         }
 
         // Validate authentication by fetching repositories
