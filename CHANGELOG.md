@@ -63,8 +63,19 @@ other than the transport removal below.
   to fetch its own discovery document over HTTP. `POST /register` (Dynamic Client Registration,
   RFC 7591) is implemented but ships disabled via `Broker:DcrEnabled` — `Broker:StaticClients`
   covers the pre-configured-`clientId` case Claude Code and similar clients already support.
-  Real end-to-end verification against Bitbucket itself (not just the test-only fake upstream
-  server this is covered by) is still pending the Bitbucket OAuth consumer request.
+  Verified end-to-end against real Bitbucket and a real Claude Code client, including via
+  Dynamic Client Registration.
+- Per-user Bitbucket credentials when `Broker:Enabled` is true: `BrokerCredentialResolver` reads
+  the caller's own `jti` claim off their validated JWT, maps it to their own stored Bitbucket
+  access/refresh token, and hands that token to `BitbucketClient` instead of the shared service
+  credential — refreshing and persisting it first if it has expired. Every tool call that reaches
+  Bitbucket resolves its credential through this same seam (`IUpstreamCredentialResolver`), so two
+  different authenticated callers hitting the same tool see results scoped to their own real
+  Bitbucket read permissions rather than one shared identity's. Falls back to
+  `SharedCredentialResolver` (today's behavior, unchanged) whenever the broker is disabled, and
+  never falls back to it silently on a resolution or refresh failure — a caller with no live
+  token, or one whose refresh was rejected, gets a clear "reconnect and re-authenticate" error
+  instead of borrowing the shared credential's access.
 
 ### Changed
 - `ModelContextProtocol`/`ModelContextProtocol.AspNetCore` 0.7.0-preview.1 → 2.1.0 (all three

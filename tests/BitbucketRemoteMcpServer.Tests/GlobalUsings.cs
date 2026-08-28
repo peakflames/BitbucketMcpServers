@@ -1,6 +1,7 @@
 global using System.Net.Http.Headers;
 global using System.Net.Http.Json;
 global using System.Reflection;
+global using System.Security.Claims;
 global using System.Security.Cryptography;
 global using System.Text;
 global using System.Text.Json;
@@ -10,6 +11,8 @@ global using BitbucketRemoteMcpServer;
 global using BitbucketRemoteMcpServer.Broker;
 global using BitbucketRemoteMcpServer.Broker.Endpoints;
 global using BitbucketRemoteMcpServer.Broker.Storage;
+global using BitbucketRemoteMcpServer.Credentials;
+global using FluentResults;
 global using BitbucketRemoteMcpServer.Tests.Fakes;
 global using BitbucketRemoteMcpServer.Tests.Infrastructure;
 global using Microsoft.AspNetCore.Builder;

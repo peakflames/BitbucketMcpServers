@@ -1,4 +1,5 @@
 global using System.Diagnostics.CodeAnalysis;
+global using System.Security.Claims;
 global using System.Security.Cryptography;
 global using System.Text;
 global using System.Text.Json;
@@ -9,6 +10,8 @@ global using BitbucketRemoteMcpServer.Auth;
 global using BitbucketRemoteMcpServer.Broker;
 global using BitbucketRemoteMcpServer.Broker.Endpoints;
 global using BitbucketRemoteMcpServer.Broker.Storage;
+global using BitbucketRemoteMcpServer.Credentials;
+global using FluentResults;
 global using Microsoft.AspNetCore.Authentication.JwtBearer;
 global using Microsoft.AspNetCore.Authorization;
 global using Microsoft.AspNetCore.HttpOverrides;
