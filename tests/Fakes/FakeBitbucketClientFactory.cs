@@ -16,4 +16,13 @@ public sealed class FakeBitbucketClientFactory(string baseUrl, string accountNam
         var result = await client.ConnectAsync();
         return result.IsFailed ? Result.Fail(result.Errors) : Result.Ok(client);
     }
+
+    [RequiresUnreferencedCode("Uses reflection")]
+    public async Task<Result<BitbucketClient>> CreateWorkspaceClientAsync()
+    {
+        var client = new BitbucketClient(accountName, repoSlug: null, "fake-user", "fake-app-password", null, null,
+                                         accessToken: accessToken, baseUrl: baseUrl);
+        var result = await client.ConnectAsync();
+        return result.IsFailed ? Result.Fail(result.Errors) : Result.Ok(client);
+    }
 }

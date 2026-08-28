@@ -26,5 +26,25 @@ public class BitbucketClientFactory(BitBucketConfig config) : IBitbucketClientFa
         return Result.Ok(bitbucketClient);
     }
 
+    [RequiresUnreferencedCode("Uses reflection")]
+    public async Task<Result<BitbucketClient>> CreateWorkspaceClientAsync()
+    {
+        var bitbucketClient = new BitbucketClient(
+            _config.AccountName,
+            repoSlug: null,
+            _config.BitbucketUsername,
+            _config.BitbucketAppPassword,
+            _config.BitbucketConsumerKey,
+            _config.BitbucketSecretKey);
+
+        var result = await bitbucketClient.ConnectAsync();
+        if (result.IsFailed)
+        {
+            return Result.Fail(result.Errors.First());
+        }
+
+        return Result.Ok(bitbucketClient);
+    }
+
     public string? RepoSlug => "TBD"; // Placeholder; implement as needed
 }

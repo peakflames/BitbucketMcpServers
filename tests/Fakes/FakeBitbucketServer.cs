@@ -13,6 +13,7 @@ public sealed class FakeBitbucketServer : IAsyncDisposable
     private readonly Dictionary<string, string> _repositories = new(StringComparer.Ordinal);
     private readonly Dictionary<string, string> _commits = new(StringComparer.Ordinal);
     private readonly Dictionary<string, string> _branches = new(StringComparer.Ordinal);
+    private readonly Dictionary<string, string> _workspaces = new(StringComparer.Ordinal);
     private readonly List<string> _authorizationHeaders = [];
     private readonly Lock _authorizationHeadersLock = new();
 
@@ -69,6 +70,9 @@ public sealed class FakeBitbucketServer : IAsyncDisposable
         app.MapGet("/repositories/{account}/{repo}/refs/branches", (string account, string repo) =>
             server.Respond(server._branches, $"{account}/{repo}"));
 
+        app.MapGet("/workspaces/{workspace}", (string workspace) =>
+            server.Respond(server._workspaces, workspace));
+
         await app.StartAsync();
 
         server.BaseUrl = app.Services.GetRequiredService<IServer>()
@@ -85,6 +89,9 @@ public sealed class FakeBitbucketServer : IAsyncDisposable
 
     public void OnBranches(string accountName, string repoSlug, string json) =>
         _branches[$"{accountName}/{repoSlug}"] = json;
+
+    public void OnWorkspace(string accountName, string json) =>
+        _workspaces[accountName] = json;
 
     private IResult Respond(Dictionary<string, string> table, string key) =>
         table.TryGetValue(key, out var json)

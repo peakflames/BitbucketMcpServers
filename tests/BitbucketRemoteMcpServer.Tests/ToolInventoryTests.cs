@@ -2,11 +2,11 @@ namespace BitbucketRemoteMcpServer.Tests;
 
 /// <summary>
 /// Reflects over every [McpServerTool] in BitbucketMcpTools and fails if a tool isn't classified
-/// as repo-scoped or workspace-scoped. That classification is what decides whether a future
-/// per-user-credential resolver needs a single named repo (repo-scoped; a 404 on an inaccessible
-/// repo is enough) or workspace-wide access (workspace-scoped; needs a workspace-level client
-/// factory method, landing in a later phase). Reflection is fine here — it must never be used in
-/// shipping code.
+/// as repo-scoped or workspace-scoped. That classification is what decides whether the per-user
+/// credential resolver needs a single named repo (repo-scoped; a 404 on an inaccessible repo is
+/// enough, via <see cref="IBitbucketClientFactory.CreateClientAsync"/>) or workspace-wide access
+/// (workspace-scoped; via <see cref="IBitbucketClientFactory.CreateWorkspaceClientAsync"/>).
+/// Reflection is fine here — it must never be used in shipping code.
 /// </summary>
 public class ToolInventoryTests
 {
