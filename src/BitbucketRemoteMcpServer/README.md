@@ -82,6 +82,29 @@ implemented. `Access:DisabledTools` exists to hide/deny a small set of tools in 
 - When `McpAuth:Enabled` is `true`, every `POST /mcp` call requires a valid bearer token issued by
   `Issuer` with the `bitbucket:read` scope; the server never issues tokens itself.
 
+## Optional: Token-Broker Storage (`Broker`)
+
+Also **disabled by default**. This is the SQLite-backed storage layer that a later phase's
+authorization server and per-user credential resolution are built on top of — on its own it does
+not change how the server behaves; enabling it only opens/creates the database file and starts a
+background sweep of expired rows.
+
+```jsonc
+"Broker": {
+  "Enabled": false,
+  "DatabasePath": "data/broker.db"   // relative paths resolve against the working directory
+}
+```
+
+- The database needs exactly one writer, so run at most one replica when this is enabled.
+- If the configured directory is not writable, the server falls back to a path under the OS temp
+  directory and logs a warning — data does **not** survive a restart in that fallback. Fix the
+  volume mount rather than relying on it.
+- Bitbucket access/refresh tokens are stored in plaintext (they must be replayed to Bitbucket
+  verbatim); everything else that only needs to be verified — client codes, the refresh tokens
+  this server issues, DCR client secrets — is stored hashed. Encryption of the database file
+  itself is a volume-level concern, not something this application layer does.
+
 ## Using the MCP Server
 
 The application exposes MCP tools that accept a repository name as a parameter. The repository slug is provided as an argument when calling the tool, not in the URL path.
