@@ -54,9 +54,9 @@ public sealed class BrokerOptions
 
     public string UpstreamClientSecret { get; set; } = string.Empty;
 
-    /// <summary>Scopes requested from Bitbucket on the upstream leg. Read-only by design — see
-    /// Bitbucket's own guidance. Never includes MCP's own "bitbucket:read" scope name; these are Bitbucket's
-    /// own scope vocabulary (account, repository, pullrequest, ...).</summary>
+    /// <summary>Scopes requested from Bitbucket on the upstream leg. Read-only by design. Never
+    /// includes MCP's own "bitbucket:read" scope name; these are Bitbucket's own scope vocabulary
+    /// (account, repository, pullrequest, ...).</summary>
     public List<string> UpstreamScopes { get; set; } = ["account", "repository", "pullrequest"];
 
     /// <summary>Advertises POST /register and accepts it when true. False by default: Claude
@@ -78,8 +78,9 @@ public sealed class BrokerOptions
     public int IssuedAccessTokenLifetimeMinutes { get; set; } = 60;
 
     /// <summary>Lifetime of the refresh token this server issues to MCP clients — deliberately
-    /// its own policy, independent of whatever Bitbucket's upstream refresh-token lifetime turns
-    /// out to be (not yet measured).</summary>
+    /// its own policy, independent of Bitbucket's upstream refresh-token lifetime, which Bitbucket
+    /// does not return and so cannot be measured directly (the upstream access-token lifetime is
+    /// 7200 seconds / 2 hours, confirmed against a live broker database).</summary>
     public int IssuedRefreshTokenLifetimeDays { get; set; } = 30;
 }
 
