@@ -8,10 +8,12 @@ namespace BitbucketRemoteMcpServer.Broker;
 public sealed class BrokerOptionsValidator : IValidateOptions<BrokerOptions>
 {
     private readonly IHostEnvironment _environment;
+    private readonly IConfiguration _configuration;
 
-    public BrokerOptionsValidator(IHostEnvironment environment)
+    public BrokerOptionsValidator(IHostEnvironment environment, IConfiguration configuration)
     {
         _environment = environment;
+        _configuration = configuration;
     }
 
     public ValidateOptionsResult Validate(string? name, BrokerOptions options)
@@ -21,6 +23,11 @@ public sealed class BrokerOptionsValidator : IValidateOptions<BrokerOptions>
 
         var failures = new List<string>();
         var isDevelopment = _environment.IsDevelopment();
+
+        if (!_configuration.GetValue("McpAuth:Enabled", false))
+            failures.Add(
+                "Broker:Enabled requires McpAuth:Enabled — without the resource-server gate no "
+              + "caller presents a token, so no per-user credential can be resolved.");
 
         if (string.IsNullOrWhiteSpace(options.DatabasePath))
             failures.Add("Broker:DatabasePath must not be blank.");
