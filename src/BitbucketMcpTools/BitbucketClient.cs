@@ -8,12 +8,14 @@ public class BitbucketClient(string accountName,
                              string? bitbucketAppPassword,
                              string? bitbucektConsumerKey,
                              string? bitbucketSecretKey,
+                             string? accessToken = null,
                              string? baseUrl = null)
 {
     private readonly string? _bitbucketUsername = bitbucketUsername;
     private readonly string? _bitbucketAppPassword = bitbucketAppPassword;
     private readonly string? _bitbucektConsumerKey = bitbucektConsumerKey;
     private readonly string? _bitbucketSecretKey = bitbucketSecretKey;
+    private readonly string? _accessToken = accessToken;
     private readonly string _accountName = accountName;
     private readonly string _repoSlug = repoSlug;
     private readonly string? _baseUrl = baseUrl;
@@ -29,7 +31,13 @@ public class BitbucketClient(string accountName,
         // callers never pass it, so this is byte-identical to `new SharpBucketV2()` in prod.
         _sharpBucket = _baseUrl is null ? new SharpBucketV2() : new SharpBucketV2(_baseUrl);
 
-        if (!string.IsNullOrWhiteSpace(_bitbucektConsumerKey) && !string.IsNullOrWhiteSpace(_bitbucketSecretKey))
+        // An access token identifies a specific caller, so it wins over the shared service
+        // credentials whenever one was supplied.
+        if (!string.IsNullOrWhiteSpace(_accessToken))
+        {
+            _sharpBucket.OAuth2BearerToken(_accessToken);
+        }
+        else if (!string.IsNullOrWhiteSpace(_bitbucektConsumerKey) && !string.IsNullOrWhiteSpace(_bitbucketSecretKey))
         {
             _sharpBucket.OAuth2ClientCredentials(_bitbucektConsumerKey, _bitbucketSecretKey);
         }

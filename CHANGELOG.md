@@ -31,6 +31,14 @@ other than the transport removal below.
   in every production code path, so behavior is unchanged)
 - `BitbucketRemoteMcpServer.Program` exposes `BuildApp(args, configure, postAuthConfigure)` so
   tests can drive the app via `UseTestServer()` instead of a real listener
+- `BitbucketClient` accepts an optional `accessToken` constructor parameter. When supplied it is
+  sent as an `Authorization: Bearer` header and takes precedence over the shared service
+  credentials; when omitted, the existing client-credentials and basic-auth paths are unchanged.
+  Backed by `OAuth2BearerToken` in `Peakflames.SharpBucket`, which upstream `SharpBucket` does
+  not provide — it can only run the client-credentials grant itself, never accept a token that
+  was obtained elsewhere. This is the seam per-caller credentials will ride on.
+- `FakeBitbucketServer` records the `Authorization` header of every request it receives, so tests
+  can assert what was actually put on the wire rather than what the client was configured with
 
 ### Changed
 - `ModelContextProtocol`/`ModelContextProtocol.AspNetCore` 0.7.0-preview.1 → 2.1.0 (all three
