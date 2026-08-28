@@ -45,7 +45,7 @@ public class RegisterEndpointTests : IClassFixture<BrokerIntegrationFixture>
         var registration = await registerResponse.Content.ReadFromJsonAsync<JsonElement>();
         var clientId = registration.GetProperty("client_id").GetString()!;
         Assert.Equal("none", registration.GetProperty("token_endpoint_auth_method").GetString());
-        Assert.True(registration.GetProperty("client_secret").ValueKind is JsonValueKind.Null);
+        Assert.False(string.IsNullOrEmpty(registration.GetProperty("client_secret").GetString()));
 
         var metadataResponse = await client.GetAsync("/.well-known/oauth-authorization-server");
         var metadata = await metadataResponse.Content.ReadFromJsonAsync<JsonElement>();

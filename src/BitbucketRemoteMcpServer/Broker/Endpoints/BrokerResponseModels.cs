@@ -82,8 +82,8 @@ public sealed class DcrResponse
     [JsonPropertyName("client_id")]
     public required string ClientId { get; init; }
 
-    // Always written, including a JSON null for public clients — RegisterEndpointTests asserts
-    // the property is present with ValueKind.Null, not absent.
+    // Always a non-null opaque string, even for "none"/public clients — see RegisterEndpoint's
+    // comment on why. Nullable only because System.Text.Json needs a settable reference type here.
     [JsonPropertyName("client_secret")]
     public string? ClientSecret { get; init; }
 
