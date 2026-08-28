@@ -130,8 +130,8 @@ public sealed class BrokerStorageTests : IDisposable
     public void TokenStoreJanitor_SweepOnce_LeavesUpstreamTokensAlone()
     {
         // upstream_tokens carries no expires_at of its own — its lifetime tracks Bitbucket's
-        // actual refresh-token lifetime (not yet measured), so the janitor must never
-        // guess at when to delete it.
+        // actual refresh-token lifetime, which Bitbucket does not disclose, so the janitor must
+        // never guess at when to delete it.
         InsertUpstreamToken("upstream-1");
 
         var janitor = new TokenStoreJanitor(
