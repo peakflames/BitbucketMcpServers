@@ -39,12 +39,7 @@
     <ProjectReference Include="..\BitbucketMcpTools\BitbucketMcpTools.csproj" />
   </ItemGroup>
 
-  <!-- copy the config file to the output directory -->
-  <!-- <Target Name="CopyConfigFile" AfterTargets="Build">
-    <Copy SourceFiles="$(MSBuildThisFileDirectory)polarion-mcp.config.json" DestinationFolder="$(OutputPath)" />
-  </Target> -->
-
-  <ItemGroup>    
+  <ItemGroup>
     <TrimmerRootAssembly Include="SharpBucket" />
     <TrimmerRootAssembly Include="Serilog" />
   </ItemGroup>

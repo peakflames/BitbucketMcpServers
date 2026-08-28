@@ -45,6 +45,4 @@ public class BitbucketClientFactory(BitBucketConfig config) : IBitbucketClientFa
 
         return Result.Ok(bitbucketClient);
     }
-
-    public string? RepoSlug => "TBD"; // Placeholder; implement as needed
 }
