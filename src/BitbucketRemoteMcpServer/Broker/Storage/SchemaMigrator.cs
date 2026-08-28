@@ -112,7 +112,7 @@ internal static class SchemaMigrator
             """
             CREATE TABLE jti_mappings (
                 jti                TEXT PRIMARY KEY,
-                upstream_token_id  TEXT NOT NULL REFERENCES upstream_tokens (upstream_token_id),
+                upstream_token_id  TEXT NOT NULL REFERENCES upstream_tokens (upstream_token_id) ON DELETE CASCADE,
                 created_at         INTEGER NOT NULL,
                 expires_at         INTEGER NOT NULL
             );
@@ -122,7 +122,7 @@ internal static class SchemaMigrator
             """
             CREATE TABLE our_refresh_tokens (
                 token_hash         TEXT PRIMARY KEY,
-                upstream_token_id  TEXT NOT NULL REFERENCES upstream_tokens (upstream_token_id),
+                upstream_token_id  TEXT NOT NULL REFERENCES upstream_tokens (upstream_token_id) ON DELETE CASCADE,
                 client_id          TEXT NOT NULL,
                 created_at         INTEGER NOT NULL,
                 expires_at         INTEGER NOT NULL

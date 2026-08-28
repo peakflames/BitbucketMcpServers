@@ -137,6 +137,12 @@ public class Program
         builder.Services.AddSingleton(bitbucketConfig);
         builder.Services.AddScoped<IBitbucketClientFactory, BitbucketRemoteClientFactory>();
 
+        // Default, byte-identical-to-today credential resolver. AddBroker() below registers
+        // BrokerCredentialResolver afterwards when Broker:Enabled — the container resolves the
+        // last-registered implementation of a singly-injected interface, so that registration
+        // wins without needing a Replace() call here.
+        builder.Services.AddScoped<IUpstreamCredentialResolver, SharedCredentialResolver>();
+
         // Add the McpServer to the DI container
         builder.Services
             .AddMcpServer()

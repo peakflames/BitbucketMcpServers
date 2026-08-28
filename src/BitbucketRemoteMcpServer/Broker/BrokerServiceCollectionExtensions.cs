@@ -40,6 +40,11 @@ public static class BrokerServiceCollectionExtensions
         services.AddHttpClient(UpstreamOAuthClient.HttpClientName);
         services.AddSingleton<UpstreamOAuthClient>();
 
+        // Overrides Program.cs's default SharedCredentialResolver registration (registered
+        // first, so this later registration wins) — per-user Bitbucket credentials only make
+        // sense once the broker actually has upstream tokens to resolve them from.
+        services.AddScoped<Credentials.IUpstreamCredentialResolver, Credentials.BrokerCredentialResolver>();
+
         // Belt-and-suspenders: every broker endpoint passes its response's JsonTypeInfo to
         // Results.Json(...) explicitly (see BrokerResponseModels.cs for why — reflection-based
         // JSON is unavailable at runtime under PublishTrimmed), but registering the context here
