@@ -18,42 +18,30 @@ public static class RegisterEndpoint
         DcrRequest? body;
         try
         {
-            body = await JsonSerializer.DeserializeAsync<DcrRequest>(request.Body, cancellationToken: cancellationToken);
+            body = await JsonSerializer.DeserializeAsync(request.Body, BrokerJsonContext.Default.DcrRequest, cancellationToken);
         }
         catch (JsonException)
         {
-            return Results.BadRequest(new { error = "invalid_client_metadata", error_description = "Malformed JSON." });
+            return BadRequest("invalid_client_metadata", "Malformed JSON.");
         }
 
         if (body?.RedirectUris is null || body.RedirectUris.Count == 0)
         {
-            return Results.BadRequest(new
-            {
-                error = "invalid_redirect_uri",
-                error_description = "redirect_uris is required and must be non-empty.",
-            });
+            return BadRequest("invalid_redirect_uri", "redirect_uris is required and must be non-empty.");
         }
 
         foreach (var redirectUri in body.RedirectUris)
         {
             if (!Uri.TryCreate(redirectUri, UriKind.Absolute, out _))
             {
-                return Results.BadRequest(new
-                {
-                    error = "invalid_redirect_uri",
-                    error_description = $"'{redirectUri}' is not an absolute URI.",
-                });
+                return BadRequest("invalid_redirect_uri", $"'{redirectUri}' is not an absolute URI.");
             }
         }
 
         var requestedGrantTypes = body.GrantTypes is { Count: > 0 } ? body.GrantTypes : DefaultGrantTypes;
         if (requestedGrantTypes.Except(AllowedGrantTypes).Any())
         {
-            return Results.BadRequest(new
-            {
-                error = "invalid_client_metadata",
-                error_description = "Only authorization_code and refresh_token grants are supported.",
-            });
+            return BadRequest("invalid_client_metadata", "Only authorization_code and refresh_token grants are supported.");
         }
 
         var authMethod = string.IsNullOrWhiteSpace(body.TokenEndpointAuthMethod) ? "none" : body.TokenEndpointAuthMethod;
@@ -77,19 +65,26 @@ public static class RegisterEndpoint
             CreatedAt: now));
 
         return Results.Json(
-            new
+            new DcrResponse
             {
-                client_id = clientId,
-                client_secret = clientSecret,
-                client_id_issued_at = now.ToUnixTimeSeconds(),
-                redirect_uris = body.RedirectUris,
-                token_endpoint_auth_method = authMethod,
-                grant_types = requestedGrantTypes,
-                response_types = new[] { "code" },
-                client_name = body.ClientName,
+                ClientId = clientId,
+                ClientSecret = clientSecret,
+                ClientIdIssuedAt = now.ToUnixTimeSeconds(),
+                RedirectUris = body.RedirectUris,
+                TokenEndpointAuthMethod = authMethod,
+                GrantTypes = requestedGrantTypes,
+                ResponseTypes = ["code"],
+                ClientName = body.ClientName,
             },
+            BrokerJsonContext.Default.DcrResponse,
             statusCode: StatusCodes.Status201Created);
     }
+
+    private static IResult BadRequest(string error, string errorDescription) =>
+        Results.Json(
+            new OAuthErrorResponse(error, errorDescription),
+            BrokerJsonContext.Default.OAuthErrorResponse,
+            statusCode: StatusCodes.Status400BadRequest);
 }
 
 public sealed class DcrRequest

@@ -28,22 +28,18 @@ public static class AuthorizeEndpoint
     {
         if (string.IsNullOrWhiteSpace(client_id))
         {
-            return Results.BadRequest(new { error = "invalid_request", error_description = "client_id is required." });
+            return BadRequest("invalid_request", "client_id is required.");
         }
 
         var client = clientLookup.TryGet(client_id);
         if (client is null)
         {
-            return Results.BadRequest(new { error = "invalid_client", error_description = "Unknown client_id." });
+            return BadRequest("invalid_client", "Unknown client_id.");
         }
 
         if (string.IsNullOrWhiteSpace(redirect_uri) || !RedirectUriValidator.IsValid(redirect_uri, client.RedirectUris))
         {
-            return Results.BadRequest(new
-            {
-                error = "invalid_request",
-                error_description = "redirect_uri is missing or not registered for this client.",
-            });
+            return BadRequest("invalid_request", "redirect_uri is missing or not registered for this client.");
         }
 
         // Only past this point is redirect_uri trusted enough to report errors to via a redirect
@@ -105,4 +101,10 @@ public static class AuthorizeEndpoint
 
         return Results.Redirect(target);
     }
+
+    private static IResult BadRequest(string error, string errorDescription) =>
+        Results.Json(
+            new OAuthErrorResponse(error, errorDescription),
+            BrokerJsonContext.Default.OAuthErrorResponse,
+            statusCode: StatusCodes.Status400BadRequest);
 }

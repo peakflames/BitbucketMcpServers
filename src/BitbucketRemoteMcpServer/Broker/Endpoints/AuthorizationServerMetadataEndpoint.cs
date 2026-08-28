@@ -16,25 +16,21 @@ public static class AuthorizationServerMetadataEndpoint
         var broker = brokerOptions.Value;
         var issuer = broker.IssuerUri;
 
-        var document = new Dictionary<string, object?>
+        var document = new AuthorizationServerMetadataResponse
         {
-            ["issuer"] = issuer,
-            ["authorization_endpoint"] = $"{issuer}/authorize",
-            ["token_endpoint"] = $"{issuer}/token",
-            ["jwks_uri"] = $"{issuer}/.well-known/jwks.json",
-            ["response_types_supported"] = new[] { "code" },
-            ["grant_types_supported"] = new[] { "authorization_code", "refresh_token" },
-            ["code_challenge_methods_supported"] = new[] { "S256" },
-            ["token_endpoint_auth_methods_supported"] = new[] { "none", "client_secret_post" },
-            ["scopes_supported"] = mcpAuthOptions.Value.ScopesSupported,
-            ["authorization_response_iss_parameter_supported"] = true,
+            Issuer = issuer,
+            AuthorizationEndpoint = $"{issuer}/authorize",
+            TokenEndpoint = $"{issuer}/token",
+            JwksUri = $"{issuer}/.well-known/jwks.json",
+            ResponseTypesSupported = ["code"],
+            GrantTypesSupported = ["authorization_code", "refresh_token"],
+            CodeChallengeMethodsSupported = ["S256"],
+            TokenEndpointAuthMethodsSupported = ["none", "client_secret_post"],
+            ScopesSupported = mcpAuthOptions.Value.ScopesSupported,
+            AuthorizationResponseIssParameterSupported = true,
+            RegistrationEndpoint = broker.DcrEnabled ? $"{issuer}/register" : null,
         };
 
-        if (broker.DcrEnabled)
-        {
-            document["registration_endpoint"] = $"{issuer}/register";
-        }
-
-        return Results.Json(document);
+        return Results.Json(document, BrokerJsonContext.Default.AuthorizationServerMetadataResponse);
     }
 }

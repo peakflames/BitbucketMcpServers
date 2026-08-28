@@ -24,17 +24,13 @@ public static class CallbackEndpoint
     {
         if (string.IsNullOrWhiteSpace(state))
         {
-            return Results.BadRequest(new { error = "invalid_request", error_description = "Missing state." });
+            return BadRequest("invalid_request", "Missing state.");
         }
 
         var transaction = transactionStore.TryGet(state);
         if (transaction is null)
         {
-            return Results.BadRequest(new
-            {
-                error = "invalid_request",
-                error_description = "Unknown or expired authorization attempt.",
-            });
+            return BadRequest("invalid_request", "Unknown or expired authorization attempt.");
         }
 
         if (!ConsentCookie.Validate(httpContext, transaction.TxnId, transaction.ConsentTokenHash))
@@ -109,6 +105,12 @@ public static class CallbackEndpoint
 
         return Results.Redirect(target);
     }
+
+    private static IResult BadRequest(string error, string errorDescription) =>
+        Results.Json(
+            new OAuthErrorResponse(error, errorDescription),
+            BrokerJsonContext.Default.OAuthErrorResponse,
+            statusCode: StatusCodes.Status400BadRequest);
 
     private static IResult RedirectWithError(string redirectUri, string state, string error)
     {

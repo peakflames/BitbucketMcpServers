@@ -23,7 +23,7 @@ public static class TokenEndpoint
     {
         if (!request.HasFormContentType)
         {
-            return Results.BadRequest(new { error = "invalid_request" });
+            return BadRequest("invalid_request");
         }
 
         var form = await request.ReadFormAsync(cancellationToken);
@@ -37,7 +37,7 @@ public static class TokenEndpoint
             "refresh_token" => await HandleRefreshTokenAsync(
                 form, brokerOptions, mcpAuthOptions, upstreamTokenStore, jtiMappingStore, refreshTokenStore,
                 upstreamOAuthClient, jwtIssuer, cancellationToken),
-            _ => Results.BadRequest(new { error = "unsupported_grant_type" }),
+            _ => BadRequest("unsupported_grant_type"),
         };
     }
 
@@ -58,7 +58,7 @@ public static class TokenEndpoint
 
         if (string.IsNullOrEmpty(code) || string.IsNullOrEmpty(codeVerifier))
         {
-            return Results.BadRequest(new { error = "invalid_request" });
+            return BadRequest("invalid_request");
         }
 
         // Consuming the code happens before any further validation: whether the code
@@ -66,33 +66,33 @@ public static class TokenEndpoint
         var record = clientCodeStore.TryConsume(code);
         if (record is null)
         {
-            return Results.BadRequest(new { error = "invalid_grant" });
+            return BadRequest("invalid_grant");
         }
 
         if (!string.IsNullOrEmpty(clientId) && !string.Equals(clientId, record.ClientId, StringComparison.Ordinal))
         {
-            return Results.BadRequest(new { error = "invalid_grant" });
+            return BadRequest("invalid_grant");
         }
 
         if (!string.IsNullOrEmpty(redirectUri) && !string.Equals(redirectUri, record.ClientRedirectUri, StringComparison.Ordinal))
         {
-            return Results.BadRequest(new { error = "invalid_grant" });
+            return BadRequest("invalid_grant");
         }
 
         if (!PkceHelper.VerifyS256(codeVerifier, record.ClientCodeChallenge))
         {
-            return Results.BadRequest(new { error = "invalid_grant" });
+            return BadRequest("invalid_grant");
         }
 
         var tokenSet = upstreamTokenStore.TryGet(record.UpstreamTokenId);
         if (tokenSet is null)
         {
-            return Results.BadRequest(new { error = "invalid_grant" });
+            return BadRequest("invalid_grant");
         }
 
         var response = IssueTokenResponse(
             tokenSet, record.ClientId, brokerOptions, mcpAuthOptions, jtiMappingStore, refreshTokenStore, jwtIssuer);
-        return Results.Json(response);
+        return Results.Json(response, BrokerJsonContext.Default.TokenResponse);
     }
 
     private static async Task<IResult> HandleRefreshTokenAsync(
@@ -111,25 +111,25 @@ public static class TokenEndpoint
 
         if (string.IsNullOrEmpty(refreshToken))
         {
-            return Results.BadRequest(new { error = "invalid_request" });
+            return BadRequest("invalid_request");
         }
 
         var found = refreshTokenStore.TryGet(refreshToken);
         if (found is null)
         {
-            return Results.BadRequest(new { error = "invalid_grant" });
+            return BadRequest("invalid_grant");
         }
 
         if (!string.IsNullOrEmpty(clientId) && !string.Equals(clientId, found.Value.ClientId, StringComparison.Ordinal))
         {
-            return Results.BadRequest(new { error = "invalid_grant" });
+            return BadRequest("invalid_grant");
         }
 
         var tokenSet = upstreamTokenStore.TryGet(found.Value.UpstreamTokenId);
         if (tokenSet is null)
         {
             refreshTokenStore.Delete(refreshToken);
-            return Results.BadRequest(new { error = "invalid_grant" });
+            return BadRequest("invalid_grant");
         }
 
         var now = DateTimeOffset.UtcNow;
@@ -139,7 +139,7 @@ public static class TokenEndpoint
             {
                 refreshTokenStore.Delete(refreshToken);
                 upstreamTokenStore.Delete(tokenSet.UpstreamTokenId);
-                return Results.BadRequest(new { error = "invalid_grant" });
+                return BadRequest("invalid_grant");
             }
 
             var refreshed = await upstreamOAuthClient.RefreshAsync(tokenSet.RefreshToken, cancellationToken);
@@ -149,7 +149,7 @@ public static class TokenEndpoint
                 // the caller must go through a real browser consent again.
                 refreshTokenStore.Delete(refreshToken);
                 upstreamTokenStore.Delete(tokenSet.UpstreamTokenId);
-                return Results.BadRequest(new { error = "invalid_grant" });
+                return BadRequest("invalid_grant");
             }
 
             tokenSet = tokenSet with
@@ -167,10 +167,16 @@ public static class TokenEndpoint
 
         var response = IssueTokenResponse(
             tokenSet, found.Value.ClientId, brokerOptions, mcpAuthOptions, jtiMappingStore, refreshTokenStore, jwtIssuer);
-        return Results.Json(response);
+        return Results.Json(response, BrokerJsonContext.Default.TokenResponse);
     }
 
-    private static object IssueTokenResponse(
+    private static IResult BadRequest(string error) =>
+        Results.Json(
+            new OAuthErrorResponse(error),
+            BrokerJsonContext.Default.OAuthErrorResponse,
+            statusCode: StatusCodes.Status400BadRequest);
+
+    private static TokenResponse IssueTokenResponse(
         UpstreamTokenSet tokenSet,
         string clientId,
         IOptions<BrokerOptions> brokerOptions,
@@ -194,13 +200,13 @@ public static class TokenEndpoint
         var scope = string.Join(' ', mcpAuth.ScopesSupported);
         var accessToken = jwtIssuer.IssueAccessToken(tokenSet.Subject, jti, scope, mcpAuth.ResourceUri, now);
 
-        return new
+        return new TokenResponse
         {
-            access_token = accessToken,
-            token_type = "Bearer",
-            expires_in = broker.IssuedAccessTokenLifetimeMinutes * 60,
-            refresh_token = newRefreshToken,
-            scope,
+            AccessToken = accessToken,
+            TokenType = "Bearer",
+            ExpiresIn = broker.IssuedAccessTokenLifetimeMinutes * 60,
+            RefreshToken = newRefreshToken,
+            Scope = scope,
         };
     }
 }

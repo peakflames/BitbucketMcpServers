@@ -40,6 +40,13 @@ public static class BrokerServiceCollectionExtensions
         services.AddHttpClient(UpstreamOAuthClient.HttpClientName);
         services.AddSingleton<UpstreamOAuthClient>();
 
+        // Belt-and-suspenders: every broker endpoint passes its response's JsonTypeInfo to
+        // Results.Json(...) explicitly (see BrokerResponseModels.cs for why — reflection-based
+        // JSON is unavailable at runtime under PublishTrimmed), but registering the context here
+        // too means a future endpoint that forgets still resolves instead of throwing.
+        services.ConfigureHttpJsonOptions(o =>
+            o.SerializerOptions.TypeInfoResolverChain.Insert(0, Endpoints.BrokerJsonContext.Default));
+
         return true;
     }
 }

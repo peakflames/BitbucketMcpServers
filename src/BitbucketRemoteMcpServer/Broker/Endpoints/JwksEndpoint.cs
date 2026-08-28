@@ -12,16 +12,16 @@ public static class JwksEndpoint
     {
         var parameters = signingKeyProvider.Rsa.ExportParameters(includePrivateParameters: false);
 
-        var jwk = new Dictionary<string, object?>
+        var jwk = new BrokerJwk
         {
-            ["kty"] = "RSA",
-            ["use"] = "sig",
-            ["alg"] = "RS256",
-            ["kid"] = signingKeyProvider.KeyId,
-            ["n"] = Base64UrlEncoder.Encode(parameters.Modulus!),
-            ["e"] = Base64UrlEncoder.Encode(parameters.Exponent!),
+            Kty = "RSA",
+            Use = "sig",
+            Alg = "RS256",
+            Kid = signingKeyProvider.KeyId,
+            N = Base64UrlEncoder.Encode(parameters.Modulus!),
+            E = Base64UrlEncoder.Encode(parameters.Exponent!),
         };
 
-        return Results.Json(new Dictionary<string, object?> { ["keys"] = new[] { jwk } });
+        return Results.Json(new BrokerJwks { Keys = [jwk] }, BrokerJsonContext.Default.BrokerJwks);
     }
 }
