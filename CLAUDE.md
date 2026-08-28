@@ -18,6 +18,7 @@ python build.py start    # Build and start in background (port 5107)
 python build.py stop     # Stop background application
 python build.py status   # Check if application is running
 python build.py run      # Run in foreground (blocks terminal)
+python build.py test     # Run the test suite
 ```
 
 ### MCP Commands
@@ -49,7 +50,7 @@ pip install psutil fastmcp
 dotnet build BitbucketMcpServers.sln
 dotnet publish src/BitbucketMcpServer/BitbucketMcpServer.csproj -o publish
 dotnet run --project src/BitbucketRemoteMcpServer/BitbucketRemoteMcpServer.csproj
-dotnet publish src/BitbucketRemoteMcpServer/BitbucketRemoteMcpServer.csproj /t:PublishContainer -r linux-x64
+dotnet publish src/BitbucketRemoteMcpServer/BitbucketRemoteMcpServer.csproj /t:PublishContainer --os linux --arch x64
 ```
 
 ## Architecture
@@ -58,27 +59,41 @@ dotnet publish src/BitbucketRemoteMcpServer/BitbucketRemoteMcpServer.csproj /t:P
 src/
 ├── BitbucketMcpServer/       # Console app (stdio MCP transport)
 ├── BitbucketRemoteMcpServer/ # ASP.NET app (HTTP MCP transport)
+│   ├── Auth/                 # OAuth 2.1 resource-server gate (McpAuth) in front of /mcp
+│   ├── Broker/               # Optional OAuth 2.1 authorization server + per-user token store
+│   │   ├── Storage/          # SQLite-backed stores (transactions, codes, tokens, clients) + janitor
+│   │   └── Endpoints/        # /authorize, /oauth/callback, /token, /register, JWKS, AS metadata
+│   └── Credentials/          # IUpstreamCredentialResolver: shared vs. per-caller (Broker) credential
 └── BitbucketMcpTools/        # Shared library with MCP tools and Bitbucket client
+tests/
+├── BitbucketRemoteMcpServer.Tests/ # Unit/integration tests for the remote server, Auth, and Broker
+├── StubAuthorizationServer/        # Mints JWTs in-test, no network/Okta dependency
+└── Fakes/                          # Local Bitbucket-shaped HTTP server + fake IBitbucketClientFactory
 ```
 
 ### Key Patterns
 
-**MCP Tools**: Defined in `BitbucketMcpTools/PullRequestTools*.cs` as partial classes. Each MCP tool is a method with `[McpServerTool]` attribute. Add new tools in separate partial class files following the naming convention `PullRequestTools_<ToolName>.cs`.
+**MCP Tools**: Defined in `BitbucketMcpTools/PullRequestTools_*.cs` and `BitbucketMcpTools/RepositoryTools_*.cs` as partial classes. Each MCP tool is a method with `[McpServerTool]` attribute. Add new tools in separate partial class files following the naming convention `PullRequestTools_<ToolName>.cs` or `RepositoryTools_<ToolName>.cs`.
 
 **Client Factory Pattern**: `IBitbucketClientFactory` creates `BitbucketClient` instances. Two implementations:
 - `BitbucketClientFactory`: For stdio server, uses CLI args/env vars for single repo config
-- `BitbucketRemoteClientFactory`: For HTTP server, resolves credentials via `IConfiguration` (env vars `BITBUCKET_MCP_USERNAME`/`BITBUCKET_MCP_API_TOKEN` or `BITBUCKET_MCP_CONSUMER_KEY`/`BITBUCKET_MCP_SECRET_KEY`), or per-caller from the token broker when `Broker:Enabled` is true
+- `BitbucketRemoteClientFactory`: For HTTP server, constructed with a populated `BitbucketProjectConfig` and an `IUpstreamCredentialResolver` — the credential itself comes from that resolver (shared, or per-caller when `Broker:Enabled`), not read directly from `IConfiguration`
 
 **Configuration**:
-- Stdio server: CLI args (`-u`, `-p`, `-a`, `-r`) or env vars (`BITBUCKET_USERNAME`, `BITBUCKET_APP_PASSWORD`, `BITBUCKET_ACCOUNT_NAME`, `BITBUCKET_REPO_SLUG`)
-- Remote server: `appsettings.json` with `BitbucketCloudConfig` section; env vars `BITBUCKET_MCP_USERNAME`/`BITBUCKET_MCP_API_TOKEN` (or the OAuth 2.0 client-credentials pair) — not required when `Broker:Enabled` is true, since every tool call then resolves its own caller's credential instead of a shared one
+- Stdio server: CLI args (`-u`, `-p`, `-a`, `-r`) or env vars (`BITBUCKET_USERNAME`, `BITBUCKET_APP_PASSWORD`, `BITBUCKET_ACCOUNT_NAME`, `BITBUCKET_REPO_SLUG`). Basic-auth only — it does not support the OAuth 2.0 client-credentials pair the remote server does. `BITBUCKET_REPO_SLUG` is still required at boot even though `list_repositories` and `search_code` no longer need one.
+- Remote server: `appsettings.json` with `BitbucketCloudConfig` section; env vars `BITBUCKET_MCP_USERNAME`/`BITBUCKET_MCP_API_TOKEN` (or the OAuth 2.0 client-credentials pair) are read once at boot in `Program.cs` — not required when `Broker:Enabled` is true, since every tool call then resolves its own caller's credential instead of a shared one
 
 ### Dependencies
 
-- **SharpBucket**: Bitbucket Cloud API client
+- **Peakflames.SharpBucket**: Bitbucket Cloud API client — a fork of upstream `SharpBucket`. The
+  fork exists because upstream cannot accept an externally obtained bearer token (only run its own
+  client-credentials grant), which is the seam the Broker's per-user credentials ride on. Do not
+  swap this back to upstream `SharpBucket` — it would silently break per-user auth.
 - **FluentResults**: Result pattern for error handling
 - **ModelContextProtocol**: MCP SDK (.NET)
 - **Serilog**: Logging
+- **Microsoft.Data.Sqlite**: Broker token-store persistence
+- **Microsoft.AspNetCore.Authentication.JwtBearer**: JWT validation for the `McpAuth` resource-server gate
 
 ## Adding New MCP Tools
 
@@ -142,9 +157,10 @@ A successful build does NOT equal working code. The workflow should be:
 
 1. Implement changes
 2. Build: `python build.py build`
-3. Start: `python build.py start`
-4. Verify: Use MCP tools or manual testing
-5. Commit only after verification
+3. Test: `python build.py test`
+4. Start: `python build.py start`
+5. Verify: Use MCP tools or manual testing
+6. Commit only after verification
 
 ## Git Workflow
 

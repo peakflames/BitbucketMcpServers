@@ -10,7 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 SDK upgrade, stateless transport, a testability seam, and an optional OAuth 2.1 resource server —
 plus, on top of it, an optional token broker that resolves each caller's own Bitbucket credential
 instead of one shared identity. Both are disabled by default. No behavior change for existing
-callers who don't opt in, other than the transport removal and `Access` retirement below.
+callers who don't opt in, other than the transport removal below.
 
 ### Added
 - `McpAuth` config section: when `McpAuth:Enabled` is `true`, `POST /mcp` requires a bearer token
@@ -18,15 +18,12 @@ callers who don't opt in, other than the transport removal and `Access` retireme
   server, and the server answers unauthenticated requests with a 401 carrying an RFC 9728
   `resource_metadata` challenge plus the corresponding `/.well-known/oauth-protected-resource/mcp`
   document. The server never issues tokens itself — Okta (or any OIDC-compliant AS) is external.
-- `Access` config section: `Access:DisabledTools` hides the named tools from `tools/list` and
-  denies `tools/call` for them, for the transitional window where authentication exists but
-  per-user credential passthrough (a later phase) does not yet. Requires `McpAuth:Enabled`.
 - Test harness: `tests/BitbucketRemoteMcpServer.Tests`, `tests/StubAuthorizationServer` (mints
   JWTs in-test, no network/Okta dependency), and `tests/Fakes` (a real local Bitbucket-shaped HTTP
-  server + a fake `IBitbucketClientFactory` for golden-output coverage, since SharpBucket has no
-  in-memory HTTP injection point). Test coverage: `AuthDisabledRegressionTests`,
+  server + a fake `IBitbucketClientFactory` for golden-output coverage, since `Peakflames.SharpBucket`
+  has no in-memory HTTP injection point). Test coverage: `AuthDisabledRegressionTests`,
   `ChallengeAndDiscoveryTests`, `ResourceServerTokenValidationTests` (valid/expired/wrong-issuer/
-  wrong-audience/unsigned/unknown-signing-key tokens), `AccessDisabledToolsTests`
+  wrong-audience/unsigned/unknown-signing-key tokens)
 - `python build.py test` to run the test suite
 - `BitbucketClient` accepts an optional `baseUrl` constructor parameter (test-only seam; `null`
   in every production code path, so behavior is unchanged)
@@ -66,6 +63,11 @@ callers who don't opt in, other than the transport removal and `Access` retireme
   covers the pre-configured-`clientId` case Claude Code and similar clients already support.
   Verified end-to-end against real Bitbucket and a real Claude Code client, including via
   Dynamic Client Registration.
+- `POST /register` always issues an opaque `client_secret`, even for a client that requested a
+  public (`token_endpoint_auth_method: none`) registration — some clients reject a DCR response
+  that omits `client_secret` outright, so a secret is minted and stored hashed either way. Unlike
+  `Broker:StaticClients` (public clients only, no secret), a DCR-registered client always gets one;
+  PKCE remains mandatory for both.
 - Per-user Bitbucket credentials when `Broker:Enabled` is true: `BrokerCredentialResolver` reads
   the caller's own `jti` claim off their validated JWT, maps it to their own stored Bitbucket
   access/refresh token, and hands that token to `BitbucketClient` instead of the shared service
@@ -81,6 +83,9 @@ callers who don't opt in, other than the transport removal and `Access` retireme
 ### Changed
 - `ModelContextProtocol`/`ModelContextProtocol.AspNetCore` 0.7.0-preview.1 → 2.1.0 (all three
   projects)
+- `SharpBucket` 0.17.0 → the published `Peakflames.SharpBucket` 0.18.0 package (previously a local
+  `ProjectReference` to the fork's source). No API changes for this project's usage; same fork,
+  now consumed as a NuGet package like any other dependency.
 - MCP HTTP transport is now stateless (`WithHttpTransport(o => o.Stateless = true)`) — no
   `Mcp-Session-Id` is issued
 - Credential env vars (`BITBUCKET_MCP_USERNAME`, `BITBUCKET_MCP_API_TOKEN`,
@@ -99,6 +104,17 @@ callers who don't opt in, other than the transport removal and `Access` retireme
   to exist at all. Deployments not using the broker are unaffected; a shared credential is still
   required as before.
 
+### Fixed
+- JSON serialization crashes in every broker OAuth endpoint (`/.well-known/oauth-authorization-server`,
+  `/.well-known/jwks.json`, `/register`, `/token`, and error responses in `/authorize` and
+  `/oauth/callback`). `PublishTrimmed` disables reflection-based `System.Text.Json` serialization
+  at runtime — including under plain `dotnet run`, not just a trimmed publish — so the anonymous
+  types and `Dictionary<string, object?>` responses these endpoints used were throwing on every
+  real request despite the test suite (which runs under a host process without that setting)
+  staying green. Replaced with concrete DTOs (`BrokerResponseModels.cs`) backed by a
+  `JsonSerializerContext`. Verified end to end: discovery, JWKS, DCR registration, and a full
+  browser-driven authorization flow against real Bitbucket all now return correct JSON.
+
 ### Removed
 - **BREAKING:** the `/sse`, `/message`, and root `/` MCP mounts are gone. `/mcp` (Streamable
   HTTP) is the only endpoint — update any client still pointed at the old URLs. `python build.py
@@ -107,11 +123,20 @@ callers who don't opt in, other than the transport removal and `Access` retireme
   longer needed under the stateless transport
 - Dead `Polarion`/`ReverseMarkdown`/`HtmlAgilityPack` package references and trimmer roots in
   `BitbucketRemoteMcpServer.csproj` (stale leftovers; this server has never depended on Polarion)
-- **BREAKING:** `Access:DisabledTools` and the rest of the `Access` config section. It existed
-  only to hide `list_repositories`/`search_code` during the window between authentication landing
-  and per-user credential passthrough landing — that window is now closed, so the tools are back
-  and the config section is gone. An `Access:*` section left in a deployment's config is now
-  silently ignored rather than doing anything; remove it.
+
+### Documentation
+- Rewrote the root `README.md` to list all 11 MCP tools (previously 4), added an `## Authentication`
+  section covering both the shared-credential and per-user OAuth Broker paths, including how to
+  supply `Broker:UpstreamClientSecret` via an environment variable and how to mount the SQLite
+  database volume
+- Deleted `src/BitbucketRemoteMcpServer/README.md` — unlinked from the rest of the repo, and stale
+  in ways the root README was not (dead `/sse`/`/` endpoints, a since-shipped feature described as
+  "not yet implemented", and a 1-of-11 tool list); its accurate `Broker`/`McpAuth` config tables
+  were folded into the root README instead
+- Fixed stale references in `CONTRIBUTING.md` (wrong Inspector port, `main` instead of `develop`
+  as the base branch, no mention of the `:latest` Docker tag or `python build.py`) and `CLAUDE.md`
+  (wrong package name, missing `Broker`/`Auth`/`Credentials` directories and dependencies, no
+  `test` step in the pre-commit checklist)
 
 ## [0.1.3] - 2026-07-10
 
