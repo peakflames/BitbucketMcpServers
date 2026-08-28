@@ -8,6 +8,7 @@ global using System.Net;
 global using BitbucketMcpTools;
 global using BitbucketRemoteMcpServer;
 global using BitbucketRemoteMcpServer.Broker;
+global using BitbucketRemoteMcpServer.Broker.Endpoints;
 global using BitbucketRemoteMcpServer.Broker.Storage;
 global using BitbucketRemoteMcpServer.Tests.Fakes;
 global using BitbucketRemoteMcpServer.Tests.Infrastructure;

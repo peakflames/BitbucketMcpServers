@@ -150,10 +150,11 @@ public class Program
         var authEnabled = builder.AddMcpAuth();
         builder.AddAccess();
 
-        // Also disabled by default: the token-broker storage layer a later phase's authorization
-        // server and per-user credential resolution are built on. Registering the SQLite stores
-        // here, ahead of the broker logic itself, means Phase 2 is verifiable in isolation.
-        builder.AddBroker();
+        // Also disabled by default: the token-broker storage layer, and the authorization-server
+        // endpoints (/authorize, /oauth/callback, /token, DCR built-but-disabled) built on top of
+        // it. Registering the SQLite stores here, ahead of the broker logic itself, means Phase 2
+        // was verifiable in isolation before Phase 3's endpoints existed.
+        var brokerEnabled = builder.AddBroker();
 
         // Test-only seam: lets tests substitute a service (e.g. a fake IBitbucketClientFactory,
         // or an auth/credential-resolver override) after the registrations above, without
@@ -186,6 +187,15 @@ public class Program
         else
         {
             app.MapMcp("mcp");
+        }
+
+        // The broker's own AS endpoints are unauthenticated by design — they issue tokens, they
+        // don't consume them. /token is the sole exception in spirit, and it authenticates the
+        // caller via the one-time code/refresh token in the request body instead of a bearer
+        // header.
+        if (brokerEnabled)
+        {
+            app.MapBrokerEndpoints();
         }
 
         return app;

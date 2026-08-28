@@ -8,7 +8,7 @@ namespace BitbucketRemoteMcpServer.Broker.Storage;
 /// </summary>
 internal static class SchemaMigrator
 {
-    private const int LatestVersion = 1;
+    private const int LatestVersion = 2;
 
     public static void EnsureLatest(SqliteConnection connection)
     {
@@ -32,6 +32,9 @@ internal static class SchemaMigrator
 
         if (currentVersion < 1)
             CreateVersion1Schema(connection, transaction);
+
+        if (currentVersion < 2)
+            CreateVersion2Schema(connection, transaction);
 
         WriteSchemaVersion(connection, transaction, LatestVersion);
         transaction.Commit();
@@ -136,6 +139,27 @@ internal static class SchemaMigrator
                 created_at          INTEGER NOT NULL
             );
             """,
+        };
+
+        foreach (var sql in statements)
+        {
+            using var command = connection.CreateCommand();
+            command.Transaction = transaction;
+            command.CommandText = sql;
+            command.ExecuteNonQuery();
+        }
+    }
+
+    // Phase 3: POST /token verifies the *client's* PKCE code_verifier against the code_challenge
+    // it presented at /authorize — but oauth_transactions (which held that challenge) is deleted
+    // once /oauth/callback issues a client code, so the challenge has to survive on the
+    // client_codes row itself for /token to check it later. DEFAULT '' lets this run against a
+    // database that already has (short-lived, by-then-expired-in-practice) rows from version 1.
+    private static void CreateVersion2Schema(SqliteConnection connection, SqliteTransaction transaction)
+    {
+        var statements = new[]
+        {
+            "ALTER TABLE client_codes ADD COLUMN client_code_challenge TEXT NOT NULL DEFAULT '';",
         };
 
         foreach (var sql in statements)

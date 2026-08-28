@@ -82,17 +82,32 @@ implemented. `Access:DisabledTools` exists to hide/deny a small set of tools in 
 - When `McpAuth:Enabled` is `true`, every `POST /mcp` call requires a valid bearer token issued by
   `Issuer` with the `bitbucket:read` scope; the server never issues tokens itself.
 
-## Optional: Token-Broker Storage (`Broker`)
+## Optional: Token Broker (`Broker`)
 
-Also **disabled by default**. This is the SQLite-backed storage layer that a later phase's
-authorization server and per-user credential resolution are built on top of — on its own it does
-not change how the server behaves; enabling it only opens/creates the database file and starts a
-background sweep of expired rows.
+Also **disabled by default**. Enabling it turns this server into its own OAuth 2.1 authorization
+server that delegates sign-in to Bitbucket — the per-user credential passthrough `Access` above
+exists as a stopgap for. On its own, enabling it opens/creates the SQLite database, starts a
+background sweep of expired rows, and maps `/authorize`, `/oauth/callback`, `/token`, and the
+`/.well-known/*` metadata/JWKS endpoints; per-user credential resolution for the MCP tools
+themselves is a later phase, still to come.
 
 ```jsonc
 "Broker": {
   "Enabled": false,
-  "DatabasePath": "data/broker.db"   // relative paths resolve against the working directory
+  "DatabasePath": "data/broker.db",       // relative paths resolve against the working directory
+  "IssuerUri": "",                        // this server's own base URL, e.g. https://your-mcp-server-url
+  "UpstreamAuthorizeUrl": "https://bitbucket.org/site/oauth2/authorize",
+  "UpstreamTokenUrl": "https://bitbucket.org/site/oauth2/access_token",
+  "UpstreamUserInfoUrl": "https://api.bitbucket.org/2.0/user",
+  "UpstreamClientId": "",                 // the Bitbucket OAuth consumer's key
+  "UpstreamClientSecret": "",             // the Bitbucket OAuth consumer's secret
+  "UpstreamScopes": ["account", "repository", "pullrequest"],
+  "DcrEnabled": false,                    // POST /register (RFC 7591) — built, off by default
+  "StaticClients": [],                    // pre-registered public clients: [{ "ClientId": "...", "RedirectUris": ["..."] }]
+  "TransactionLifetimeMinutes": 15,
+  "ClientCodeLifetimeMinutes": 5,
+  "IssuedAccessTokenLifetimeMinutes": 60,
+  "IssuedRefreshTokenLifetimeDays": 30
 }
 ```
 
@@ -104,6 +119,18 @@ background sweep of expired rows.
   verbatim); everything else that only needs to be verified — client codes, the refresh tokens
   this server issues, DCR client secrets — is stored hashed. Encryption of the database file
   itself is a volume-level concern, not something this application layer does.
+- With `Broker:Enabled`, `McpAuth`'s resource-server gate automatically trusts this server's own
+  signing key (persisted in the database, so a restart doesn't invalidate outstanding tokens)
+  instead of fetching discovery/JWKS from `McpAuth:Issuer` — that setting still has to be a
+  syntactically valid URI to pass validation, but its value stops mattering once the broker is on.
+- `Broker:StaticClients` is the non-DCR way to pre-register a client (e.g. Claude Code with a
+  fixed `oauth.clientId`) — public clients only, no secret; PKCE is the confidentiality mechanism.
+  DCR-registered clients live in the database instead and are only reachable when
+  `Broker:DcrEnabled` is `true`.
+- Requesting the Bitbucket OAuth consumer: one **private** consumer per environment (Bitbucket's
+  Callback URL field is validated by prefix match, not exact match, so a `localhost` dev URL and a
+  real HTTPS host need separate consumers), Callback URL `<IssuerUri>/oauth/callback`, permissions
+  scoped to read-only Account/Repositories/Pull requests.
 
 ## Using the MCP Server
 

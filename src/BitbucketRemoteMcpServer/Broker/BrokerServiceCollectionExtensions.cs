@@ -28,7 +28,17 @@ public static class BrokerServiceCollectionExtensions
         services.AddSingleton<JtiMappingStore>();
         services.AddSingleton<OurRefreshTokenStore>();
         services.AddSingleton<AppMetaStore>();
+        services.AddSingleton<RegisteredClientStore>();
         services.AddHostedService<TokenStoreJanitor>();
+
+        // The authorization-server pieces Phase 3 adds on top of Phase 2's storage: this
+        // server's own signing key, PKCE/redirect-uri/client-lookup helpers, the upstream
+        // (Bitbucket) OAuth leg, and JWT issuance.
+        services.AddSingleton<SigningKeyProvider>();
+        services.AddSingleton<ClientLookup>();
+        services.AddSingleton<JwtIssuer>();
+        services.AddHttpClient(UpstreamOAuthClient.HttpClientName);
+        services.AddSingleton<UpstreamOAuthClient>();
 
         return true;
     }

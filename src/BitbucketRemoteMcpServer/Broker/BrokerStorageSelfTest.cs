@@ -27,6 +27,7 @@ public static class BrokerStorageSelfTest
             {
                 Enabled = true,
                 DatabasePath = databasePath,
+                IssuerUri = "https://self-test.example.invalid",
             });
             var connectionFactory = new BrokerDbConnectionFactory(
                 options, loggerFactory.CreateLogger<BrokerDbConnectionFactory>());
@@ -38,6 +39,7 @@ public static class BrokerStorageSelfTest
             RunJtiMappingRoundTrip(connectionFactory);
             RunOurRefreshTokenRoundTrip(connectionFactory, out var refreshTokenSecret);
             RunAppMetaRoundTrip(connectionFactory);
+            RunJwtIssuanceAndValidationCheck(connectionFactory, options);
             RunSecretAbsenceCheck(connectionFactory, databasePath, refreshTokenSecret);
 
             Console.WriteLine("SELF-TEST: PASS");
@@ -113,7 +115,7 @@ public static class BrokerStorageSelfTest
         var store = new ClientCodeStore(connectionFactory);
         var code = $"self-test-code-{Guid.NewGuid():N}";
         store.Insert(code, "self-test-upstream-token-id", "self-test-client", "http://127.0.0.1/callback",
-            DateTimeOffset.UtcNow, DateTimeOffset.UtcNow.AddMinutes(5));
+            "self-test-code-challenge", DateTimeOffset.UtcNow, DateTimeOffset.UtcNow.AddMinutes(5));
 
         var firstConsume = store.TryConsume(code)
             ?? throw new InvalidOperationException("First consume of a fresh code returned null.");
@@ -201,6 +203,39 @@ public static class BrokerStorageSelfTest
         store.Set(key, "self-test-value-updated");
         if (store.TryGet(key) != "self-test-value-updated")
             throw new InvalidOperationException("App meta update did not take effect.");
+    }
+
+    /// <summary>
+    /// Phase 3's own trim risk, distinct from Phase 2's SQLite one: <c>Microsoft.IdentityModel.*</c>
+    /// is reflection-heavy and only exercised when a token is actually signed/validated, so a trim
+    /// bug here would not surface from the storage round trips above. Persists a signing key via
+    /// <see cref="AppMetaStore"/> exactly as the real broker does, issues a JWT with it, and
+    /// validates that JWT the same way the resource-server gate would.
+    /// </summary>
+    private static void RunJwtIssuanceAndValidationCheck(
+        BrokerDbConnectionFactory connectionFactory, IOptions<BrokerOptions> options)
+    {
+        var signingKeyProvider = new SigningKeyProvider(new AppMetaStore(connectionFactory));
+        var jwtIssuer = new JwtIssuer(signingKeyProvider, options);
+
+        const string audience = "https://self-test-audience.example.invalid/mcp";
+        var jwt = jwtIssuer.IssueAccessToken(
+            subject: "self-test-subject", jti: "self-test-jti", scope: "bitbucket:read",
+            audience: audience, now: DateTimeOffset.UtcNow);
+
+        var handler = new JsonWebTokenHandler();
+        var validationParameters = new TokenValidationParameters
+        {
+            ValidIssuer = options.Value.IssuerUri,
+            ValidAudience = audience,
+            ValidateLifetime = true,
+            ValidAlgorithms = ["RS256"],
+            IssuerSigningKey = new RsaSecurityKey(signingKeyProvider.Rsa) { KeyId = signingKeyProvider.KeyId },
+        };
+
+        var result = handler.ValidateTokenAsync(jwt, validationParameters).GetAwaiter().GetResult();
+        if (!result.IsValid)
+            throw new InvalidOperationException("Self-issued JWT failed validation.", result.Exception);
     }
 
     /// <summary>Reads the raw database file and asserts the plaintext refresh-token secret this

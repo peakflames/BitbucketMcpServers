@@ -7,6 +7,10 @@ namespace BitbucketRemoteMcpServer.Broker.Storage;
 /// code is a single atomic delete-and-return: <see cref="TryConsume"/> makes the code unusable
 /// the instant it is read, closing the window a separate "check then delete" would leave open for
 /// the same code to be redeemed twice.
+///
+/// Carries the client's own PKCE code_challenge (captured at /authorize, on the now-deleted
+/// oauth_transactions row) so /token can verify the client's code_verifier — PKCE protects the
+/// authorization_code -> token exchange, not just the initial redirect.
 /// </summary>
 public sealed class ClientCodeStore(BrokerDbConnectionFactory connectionFactory)
 {
@@ -15,6 +19,7 @@ public sealed class ClientCodeStore(BrokerDbConnectionFactory connectionFactory)
         string upstreamTokenId,
         string clientId,
         string clientRedirectUri,
+        string clientCodeChallenge,
         DateTimeOffset createdAt,
         DateTimeOffset expiresAt)
     {
@@ -23,14 +28,17 @@ public sealed class ClientCodeStore(BrokerDbConnectionFactory connectionFactory)
         command.CommandText =
             """
             INSERT INTO client_codes
-                (code_hash, upstream_token_id, client_id, client_redirect_uri, created_at, expires_at)
+                (code_hash, upstream_token_id, client_id, client_redirect_uri, client_code_challenge,
+                 created_at, expires_at)
             VALUES
-                ($code_hash, $upstream_token_id, $client_id, $client_redirect_uri, $created_at, $expires_at);
+                ($code_hash, $upstream_token_id, $client_id, $client_redirect_uri, $client_code_challenge,
+                 $created_at, $expires_at);
             """;
         command.Parameters.AddWithValue("$code_hash", TokenHashing.Hash(code));
         command.Parameters.AddWithValue("$upstream_token_id", upstreamTokenId);
         command.Parameters.AddWithValue("$client_id", clientId);
         command.Parameters.AddWithValue("$client_redirect_uri", clientRedirectUri);
+        command.Parameters.AddWithValue("$client_code_challenge", clientCodeChallenge);
         command.Parameters.AddWithValue("$created_at", createdAt.ToUnixTimeSeconds());
         command.Parameters.AddWithValue("$expires_at", expiresAt.ToUnixTimeSeconds());
         command.ExecuteNonQuery();
@@ -43,7 +51,7 @@ public sealed class ClientCodeStore(BrokerDbConnectionFactory connectionFactory)
     /// already been consumed or has expired; callers must not distinguish those cases in their
     /// response, to avoid telling an attacker which one applies.
     /// </summary>
-    public (string UpstreamTokenId, string ClientId, string ClientRedirectUri)? TryConsume(string code)
+    public ClientCodeRecord? TryConsume(string code)
     {
         using var connection = connectionFactory.OpenConnection();
         using var command = connection.CreateCommand();
@@ -51,14 +59,14 @@ public sealed class ClientCodeStore(BrokerDbConnectionFactory connectionFactory)
             """
             DELETE FROM client_codes
             WHERE code_hash = $code_hash AND expires_at > $now
-            RETURNING upstream_token_id, client_id, client_redirect_uri;
+            RETURNING upstream_token_id, client_id, client_redirect_uri, client_code_challenge;
             """;
         command.Parameters.AddWithValue("$code_hash", TokenHashing.Hash(code));
         command.Parameters.AddWithValue("$now", DateTimeOffset.UtcNow.ToUnixTimeSeconds());
 
         using var reader = command.ExecuteReader();
         return reader.Read()
-            ? (reader.GetString(0), reader.GetString(1), reader.GetString(2))
+            ? new ClientCodeRecord(reader.GetString(0), reader.GetString(1), reader.GetString(2), reader.GetString(3))
             : null;
     }
 
@@ -71,3 +79,6 @@ public sealed class ClientCodeStore(BrokerDbConnectionFactory connectionFactory)
         return command.ExecuteNonQuery();
     }
 }
+
+public sealed record ClientCodeRecord(
+    string UpstreamTokenId, string ClientId, string ClientRedirectUri, string ClientCodeChallenge);

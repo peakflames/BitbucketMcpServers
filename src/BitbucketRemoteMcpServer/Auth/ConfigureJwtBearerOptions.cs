@@ -17,10 +17,12 @@ namespace BitbucketRemoteMcpServer.Auth;
 public sealed class ConfigureJwtBearerOptions : IConfigureNamedOptions<JwtBearerOptions>
 {
     private readonly IOptions<McpAuthOptions> _authOptions;
+    private readonly IServiceProvider _serviceProvider;
 
-    public ConfigureJwtBearerOptions(IOptions<McpAuthOptions> authOptions)
+    public ConfigureJwtBearerOptions(IOptions<McpAuthOptions> authOptions, IServiceProvider serviceProvider)
     {
         _authOptions = authOptions;
+        _serviceProvider = serviceProvider;
     }
 
     public void Configure(string? name, JwtBearerOptions options)
@@ -34,6 +36,16 @@ public sealed class ConfigureJwtBearerOptions : IConfigureNamedOptions<JwtBearer
     public void Configure(JwtBearerOptions options)
     {
         var auth = _authOptions.Value;
+
+        // SigningKeyProvider is only registered when Broker:Enabled — its presence is this
+        // class's only signal that the broker is on, since BrokerOptions itself always resolves
+        // (with defaults) whether or not the section was ever bound.
+        var signingKeyProvider = _serviceProvider.GetService<Broker.SigningKeyProvider>();
+        if (signingKeyProvider is not null)
+        {
+            ConfigureForSelfHostedBroker(options, auth, signingKeyProvider);
+            return;
+        }
 
         options.Authority = auth.Issuer;
         if (!string.IsNullOrWhiteSpace(auth.MetadataAddress))
@@ -61,5 +73,34 @@ public sealed class ConfigureJwtBearerOptions : IConfigureNamedOptions<JwtBearer
 
         // Pinned — blocks alg-confusion attacks and "none".
         tvp.ValidAlgorithms = ["RS256"];
+    }
+
+    /// <summary>
+    /// With the broker enabled this server IS the authorization server, so it must never point
+    /// Authority/MetadataAddress at itself over HTTP — JwtBearer's discovery fetch would ask the
+    /// process to answer its own request before it has finished starting. Feed the signing key
+    /// and issuer directly from the in-process <see cref="Broker.SigningKeyProvider"/> instead of
+    /// fetching JWKS over the network.
+    /// </summary>
+    private void ConfigureForSelfHostedBroker(
+        JwtBearerOptions options, McpAuthOptions auth, Broker.SigningKeyProvider signingKeyProvider)
+    {
+        var brokerOptions = _serviceProvider.GetRequiredService<IOptions<Broker.BrokerOptions>>().Value;
+
+        options.MapInboundClaims = false;
+
+        var tvp = options.TokenValidationParameters;
+        tvp.ValidateIssuer = true;
+        tvp.ValidateAudience = true;
+        tvp.ValidateLifetime = true;
+        tvp.ValidateIssuerSigningKey = true;
+        tvp.ValidIssuer = brokerOptions.IssuerUri;
+        tvp.ValidAudience = auth.ResourceUri;
+        tvp.ClockSkew = TimeSpan.FromSeconds(auth.ClockSkewSeconds);
+        tvp.ValidAlgorithms = ["RS256"];
+        tvp.IssuerSigningKey = new Microsoft.IdentityModel.Tokens.RsaSecurityKey(signingKeyProvider.Rsa)
+        {
+            KeyId = signingKeyProvider.KeyId,
+        };
     }
 }
