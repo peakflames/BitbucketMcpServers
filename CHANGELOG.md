@@ -39,6 +39,17 @@ other than the transport removal below.
   was obtained elsewhere. This is the seam per-caller credentials will ride on.
 - `FakeBitbucketServer` records the `Authorization` header of every request it receives, so tests
   can assert what was actually put on the wire rather than what the client was configured with
+- `Broker` config section: `Broker:Enabled` (default `false`) starts a SQLite-backed token store —
+  `oauth_transactions`, `client_codes`, `upstream_tokens`, `jti_mappings`, `our_refresh_tokens`,
+  `registered_clients`, `app_meta` — plus a background janitor that sweeps expired rows every
+  minute. On its own this changes nothing observable; it is the storage layer a later phase's
+  authorization server and per-user credential resolution are built on. WAL journaling and a busy
+  timeout are applied to every connection; the database needs exactly one writer, so run at most
+  one replica when enabled. Bitbucket access/refresh tokens are stored in plaintext (they must be
+  replayed to Bitbucket verbatim); client codes, this server's own issued refresh tokens, and DCR
+  client secrets are stored hashed, compared in constant time. If the configured
+  `Broker:DatabasePath` directory is not writable, the server falls back to a temp path and logs a
+  warning rather than crash-looping — data does not survive a restart in that fallback.
 
 ### Changed
 - `ModelContextProtocol`/`ModelContextProtocol.AspNetCore` 0.7.0-preview.1 → 2.1.0 (all three

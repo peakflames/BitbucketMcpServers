@@ -6,6 +6,14 @@ public class Program
     [RequiresUnreferencedCode("Uses Bitbucket API which requires reflection")]
     public static int Main(string[] args)
     {
+        // Not a general-purpose CLI mode — exists solely so the trimmed, single-file `dotnet
+        // publish` output can be verified directly, per Phase 2's stop point. See
+        // BrokerStorageSelfTest's own remarks for why building from source can't substitute.
+        if (args.Length == 2 && args[0] == "--self-test-broker-storage")
+        {
+            return Broker.BrokerStorageSelfTest.Run(args[1]);
+        }
+
         try
         {
             var logDir = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "logs");
@@ -141,6 +149,11 @@ public class Program
         // transitional window before a later phase's per-user credential passthrough lands.
         var authEnabled = builder.AddMcpAuth();
         builder.AddAccess();
+
+        // Also disabled by default: the token-broker storage layer a later phase's authorization
+        // server and per-user credential resolution are built on. Registering the SQLite stores
+        // here, ahead of the broker logic itself, means Phase 2 is verifiable in isolation.
+        builder.AddBroker();
 
         // Test-only seam: lets tests substitute a service (e.g. a fake IBitbucketClientFactory,
         // or an auth/credential-resolver override) after the registrations above, without
