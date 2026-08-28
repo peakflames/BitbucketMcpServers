@@ -108,7 +108,7 @@ public sealed class BrokerStorageTests : IDisposable
 
         var clientCodes = new ClientCodeStore(_connectionFactory);
         clientCodes.Insert("expired-code", "upstream-1", "client-1", "http://127.0.0.1/callback",
-            DateTimeOffset.UtcNow.AddMinutes(-10), DateTimeOffset.UtcNow.AddMinutes(-5));
+            "code-challenge", DateTimeOffset.UtcNow.AddMinutes(-10), DateTimeOffset.UtcNow.AddMinutes(-5));
 
         var jtiMappings = new JtiMappingStore(_connectionFactory);
         jtiMappings.Insert("jti-expired", "upstream-1", DateTimeOffset.UtcNow.AddHours(-2), DateTimeOffset.UtcNow.AddHours(-1));
@@ -151,11 +151,11 @@ public sealed class BrokerStorageTests : IDisposable
     {
         var store = new ClientCodeStore(_connectionFactory);
         store.Insert("the-code", "upstream-1", "client-1", "http://127.0.0.1/callback",
-            DateTimeOffset.UtcNow, DateTimeOffset.UtcNow.AddMinutes(5));
+            "code-challenge", DateTimeOffset.UtcNow, DateTimeOffset.UtcNow.AddMinutes(5));
 
         var first = store.TryConsume("the-code");
         Assert.NotNull(first);
-        Assert.Equal("upstream-1", first!.Value.UpstreamTokenId);
+        Assert.Equal("upstream-1", first!.UpstreamTokenId);
 
         var second = store.TryConsume("the-code");
         Assert.Null(second);
@@ -166,7 +166,7 @@ public sealed class BrokerStorageTests : IDisposable
     {
         var store = new ClientCodeStore(_connectionFactory);
         store.Insert("expired-code", "upstream-1", "client-1", "http://127.0.0.1/callback",
-            DateTimeOffset.UtcNow.AddMinutes(-10), DateTimeOffset.UtcNow.AddMinutes(-5));
+            "code-challenge", DateTimeOffset.UtcNow.AddMinutes(-10), DateTimeOffset.UtcNow.AddMinutes(-5));
 
         Assert.Null(store.TryConsume("expired-code"));
     }
@@ -256,7 +256,7 @@ public sealed class BrokerStorageTests : IDisposable
         using var command = connection.CreateCommand();
         command.CommandText = "SELECT value FROM app_meta WHERE key = 'schema_version';";
 
-        Assert.Equal("1", (string)command.ExecuteScalar()!);
+        Assert.Equal("2", (string)command.ExecuteScalar()!);
     }
 
     [Fact]
@@ -290,7 +290,7 @@ public sealed class BrokerStorageTests : IDisposable
         const string refreshTokenSecret = "plaintext-refresh-token-should-never-appear";
 
         new ClientCodeStore(_connectionFactory).Insert(clientCodeSecret, "upstream-1", "client-1",
-            "http://127.0.0.1/callback", DateTimeOffset.UtcNow, DateTimeOffset.UtcNow.AddMinutes(5));
+            "http://127.0.0.1/callback", "code-challenge", DateTimeOffset.UtcNow, DateTimeOffset.UtcNow.AddMinutes(5));
         new OurRefreshTokenStore(_connectionFactory).Insert(refreshTokenSecret, "upstream-1", "client-1",
             DateTimeOffset.UtcNow, DateTimeOffset.UtcNow.AddDays(1));
 

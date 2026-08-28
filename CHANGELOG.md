@@ -42,14 +42,29 @@ other than the transport removal below.
 - `Broker` config section: `Broker:Enabled` (default `false`) starts a SQLite-backed token store —
   `oauth_transactions`, `client_codes`, `upstream_tokens`, `jti_mappings`, `our_refresh_tokens`,
   `registered_clients`, `app_meta` — plus a background janitor that sweeps expired rows every
-  minute. On its own this changes nothing observable; it is the storage layer a later phase's
-  authorization server and per-user credential resolution are built on. WAL journaling and a busy
-  timeout are applied to every connection; the database needs exactly one writer, so run at most
-  one replica when enabled. Bitbucket access/refresh tokens are stored in plaintext (they must be
-  replayed to Bitbucket verbatim); client codes, this server's own issued refresh tokens, and DCR
-  client secrets are stored hashed, compared in constant time. If the configured
-  `Broker:DatabasePath` directory is not writable, the server falls back to a temp path and logs a
-  warning rather than crash-looping — data does not survive a restart in that fallback.
+  minute. On its own this changes nothing observable; it is the storage layer the authorization
+  server below is built on. WAL journaling and a busy timeout are applied to every connection; the
+  database needs exactly one writer, so run at most one replica when enabled. Bitbucket
+  access/refresh tokens are stored in plaintext (they must be replayed to Bitbucket verbatim);
+  client codes, this server's own issued refresh tokens, and DCR client secrets are stored hashed,
+  compared in constant time. If the configured `Broker:DatabasePath` directory is not writable, the
+  server falls back to a temp path and logs a warning rather than crash-looping — data does not
+  survive a restart in that fallback.
+- With `Broker:Enabled`, this server becomes its own OAuth 2.1 authorization server, delegating the
+  actual sign-in to Bitbucket: `GET /.well-known/oauth-authorization-server`, `GET /authorize`,
+  `GET /oauth/callback`, `POST /token`, and `GET /.well-known/jwks.json`. Modeled on FastMCP's
+  `OAuthProxy` — two independent PKCE pairs (the client's, verified at `/token`; this server's own,
+  used only against Bitbucket), a consent-binding cookie defending `/oauth/callback` against a
+  confused-deputy replay, and a `state`=transaction-id substitution so Bitbucket never sees the
+  client's own `state`. Never forwards a client-supplied RFC 8707 `resource` parameter upstream —
+  Bitbucket Cloud rejects it with `invalid_target` — binding it to this server's own issued JWT
+  `aud` instead. `McpAuth`'s resource-server gate automatically trusts this server's own signing
+  key (persisted in `app_meta`, survives a restart) once the broker is enabled, rather than trying
+  to fetch its own discovery document over HTTP. `POST /register` (Dynamic Client Registration,
+  RFC 7591) is implemented but ships disabled via `Broker:DcrEnabled` — `Broker:StaticClients`
+  covers the pre-configured-`clientId` case Claude Code and similar clients already support.
+  Real end-to-end verification against Bitbucket itself (not just the test-only fake upstream
+  server this is covered by) is still pending the Bitbucket OAuth consumer request.
 
 ### Changed
 - `ModelContextProtocol`/`ModelContextProtocol.AspNetCore` 0.7.0-preview.1 → 2.1.0 (all three
