@@ -126,6 +126,33 @@ Replace `<YOUR_VERSION>` with your desired version number (e.g., `0.0.3-dev`).
    - TransportType: streamable http
    - URL: http://localhost:5107/mcp
 
+### Running the Broker locally
+
+The per-user OAuth Broker (see the [Authentication](README.md#per-user-oauth-broker) section of the
+root README) needs its own Bitbucket OAuth consumer, separate from any consumer used for a deployed
+environment — see [Requesting the Bitbucket OAuth consumer](README.md#per-user-oauth-broker) for why
+consumers aren't interchangeable across hosts.
+
+1. In Bitbucket, register a **dev-only** private consumer with Callback URL
+   `http://localhost:5107/oauth/callback`. A consumer registered for a deployed host will not work
+   here — Bitbucket rejects the token exchange with `"Scheme must match configured redirect uri"`
+   (or `"host must match configured redirect uri"`) if you try.
+2. Keep the local port at `5107` (the default `python build.py start` port). The port is part of the
+   exact host match Bitbucket performs, so changing it breaks the registration above.
+3. Uncomment the `McpAuth`/`Broker` block already present in
+   `src/BitbucketRemoteMcpServer/appsettings.Development.json` rather than writing new config, and
+   fill in `Broker:UpstreamClientId` with the dev consumer's key.
+4. Supply the consumer secret via an environment variable, never inline in the JSON file:
+
+   ```powershell
+   $env:Broker__UpstreamClientSecret = "your_dev_consumer_secret"
+   ```
+
+5. Run with `ASPNETCORE_ENVIRONMENT=Development` — that's what permits the plain `http://localhost`
+   values above; outside `Development`, `Broker:IssuerUri` and `McpAuth:ResourceUri` must be `https`
+   and the server fails fast at startup if they aren't.
+6. The token store lands at `data/broker.db`, relative to the working directory you launch from.
+
 ## Code Standards
 
 When contributing to this project:

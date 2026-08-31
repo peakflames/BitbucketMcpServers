@@ -112,7 +112,18 @@ set BITBUCKET_MCP_SECRET_KEY=your_secret_key
 2. Navigate to **Settings** > **OAuth consumers**
 3. Click **Add consumer**
 4. Configure the consumer with the necessary permissions (e.g., repositories read/write, pull requests)
-5. Save and note your Consumer Key and Consumer Secret
+5. **Callback URL**: Bitbucket requires a value here, but this authentication method never uses it —
+   see the note below. Any syntactically valid URL works, e.g. `https://example.com/unused`
+6. Check **This is a private consumer** — required for this grant type
+7. Save and note your Consumer Key and Consumer Secret
+
+> **One consumer covers every environment.** This flow (`client_credentials`, RFC 6749 §4.4) sends
+> the Consumer Key/Secret directly to Bitbucket's token endpoint and never sends a `redirect_uri`,
+> so the consumer's registered Callback URL is never evaluated. The same key/secret pair works
+> unchanged from a workstation, a shared dev server, and production — there is no need to mint a
+> separate consumer per host. This is the opposite of the [Broker's per-user OAuth](#per-user-oauth-broker),
+> which *does* need one consumer per environment because it drives a real browser redirect back to
+> each host's own callback URL.
 
 #### Basic Authentication (Alternative Method)
 
@@ -241,10 +252,30 @@ docker run -d \
   peakflames/bitbucket-remote-mcp-server
 ```
 
-**Requesting the Bitbucket OAuth consumer:** one **private** consumer per environment (Bitbucket's
-Callback URL field is validated by prefix match, not exact match, so a `localhost` dev URL and a
-real HTTPS host need separate consumers), Callback URL `<Broker:IssuerUri>/oauth/callback`,
-permissions scoped to read-only Account/Repositories/Pull requests.
+**Requesting the Bitbucket OAuth consumer:** unlike the shared client-credentials method above, the
+Broker drives a real browser redirect back to Bitbucket, so its consumer registration matters and is
+**not** interchangeable across hosts.
+
+- **Consumer type** — check **This is a private consumer** in the Bitbucket UI.
+- **Callback URL** — `<Broker:IssuerUri>/oauth/callback`, exactly matching the value the Broker sends
+  as `redirect_uri`.
+- **Permissions** — scoped to read-only Account/Repositories/Pull requests.
+- **One consumer per environment.** Bitbucket matches the incoming `redirect_uri` against the
+  consumer's configured Callback URL with **scheme and host (including port) matched exactly, and
+  only the path matched by prefix**. A mismatch on scheme or host is rejected outright — it is not a
+  looser "prefix" match on the whole URL. Concretely:
+
+  | Environment | `Broker:IssuerUri` | Consumer Callback URL |
+  |---|---|---|
+  | Local dev | `http://localhost:5107` | `http://localhost:5107/oauth/callback` |
+  | Shared dev server | `https://mcp-dev.example.com` | `https://mcp-dev.example.com/oauth/callback` |
+  | Production | `https://mcp.example.com` | `https://mcp.example.com/oauth/callback` |
+
+  A `localhost` consumer cannot also serve a production host, and vice versa — register a separate
+  consumer for each. If the scheme or host doesn't match, Bitbucket's token endpoint rejects the
+  exchange with `"Scheme must match configured redirect uri"` or `"host must match configured
+  redirect uri"`; seeing either error means the wrong consumer (or the wrong `Broker:IssuerUri`) is
+  configured for this environment.
 
 **`Broker:IssuerUri` and `McpAuth:ResourceUri` constraints** — these must be an absolute URI,
 `https` outside the `Development` environment (plain `http` is only accepted in `Development`),
