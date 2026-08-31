@@ -6,8 +6,7 @@ namespace BitbucketRemoteMcpServer.Broker;
 /// <c>BitbucketRemoteMcpServer --self-test-broker-storage &lt;path-to.db&gt;</c> — because
 /// building and running from source proves nothing about whether
 /// <c>Microsoft.Data.Sqlite</c>/<c>SQLitePCLRaw</c>'s native asset and reflection-based provider
-/// lookup survive <c>PublishTrimmed</c> + <c>PublishSingleFile</c>. See the research doc's
-/// trimmed-single-file-publish risk note.
+/// lookup survive <c>PublishTrimmed</c> + <c>PublishSingleFile</c>.
 ///
 /// Run twice against the same path to also cover restart survival: the first run creates a
 /// long-lived marker row and reports <c>CREATED</c>; the second run finds it and reports
@@ -206,7 +205,7 @@ public static class BrokerStorageSelfTest
     }
 
     /// <summary>
-    /// Phase 3's own trim risk, distinct from Phase 2's SQLite one: <c>Microsoft.IdentityModel.*</c>
+    /// A second trim risk, distinct from the SQLite one above: <c>Microsoft.IdentityModel.*</c>
     /// is reflection-heavy and only exercised when a token is actually signed/validated, so a trim
     /// bug here would not surface from the storage round trips above. Persists a signing key via
     /// <see cref="AppMetaStore"/> exactly as the real broker does, issues a JWT with it, and

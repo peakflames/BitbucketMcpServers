@@ -59,7 +59,7 @@ public sealed class ConfigureJwtBearerOptions : IConfigureNamedOptions<JwtBearer
         options.RequireHttpsMetadata = auth.Issuer.StartsWith("https://", StringComparison.OrdinalIgnoreCase);
 
         // Keep "sub" as "sub" instead of ASP.NET's default ClaimTypes.NameIdentifier mapping —
-        // Phase 2's credential resolver keys on the raw "sub" claim.
+        // the broker's credential resolver keys on the raw "sub" claim.
         options.MapInboundClaims = false;
 
         var tvp = options.TokenValidationParameters;

@@ -2,7 +2,7 @@ namespace BitbucketRemoteMcpServer.Tests.Infrastructure;
 
 /// <summary>
 /// Composes McpAuth + Broker against a fake upstream (Bitbucket) OAuth server — the harness for
-/// Phase 3's endpoint tests. Unlike <see cref="AuthIntegrationFixture"/> (an external AS this
+/// the broker's endpoint tests. Unlike <see cref="AuthIntegrationFixture"/> (an external AS this
 /// server merely validates tokens from), here this server IS the authorization server, so
 /// McpAuth:Issuer is only present to satisfy McpAuthOptionsValidator; ConfigureJwtBearerOptions
 /// ignores it once SigningKeyProvider is registered and uses the in-process key instead.

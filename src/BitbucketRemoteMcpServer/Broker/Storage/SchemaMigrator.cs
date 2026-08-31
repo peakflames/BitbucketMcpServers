@@ -1,10 +1,10 @@
 namespace BitbucketRemoteMcpServer.Broker.Storage;
 
 /// <summary>
-/// Hand-rolled schema creation and versioning — no EF Core, per the decision recorded in the
-/// research doc's build-vs-buy section. <c>app_meta</c> holds <c>schema_version</c> as a row
-/// rather than a dedicated column, so it can also hold the AS signing key a later phase adds,
-/// matching the table's role in the precedent this was modeled on.
+/// Hand-rolled schema creation and versioning — no EF Core. The schema is small, fixed, and
+/// read on a hot path, so a migration framework would cost more than it saves here.
+/// <c>app_meta</c> holds <c>schema_version</c> as a row rather than a dedicated column, so the
+/// same table can also hold the authorization server's signing key.
 /// </summary>
 internal static class SchemaMigrator
 {
@@ -150,7 +150,7 @@ internal static class SchemaMigrator
         }
     }
 
-    // Phase 3: POST /token verifies the *client's* PKCE code_verifier against the code_challenge
+    // POST /token verifies the *client's* PKCE code_verifier against the code_challenge
     // it presented at /authorize — but oauth_transactions (which held that challenge) is deleted
     // once /oauth/callback issues a client code, so the challenge has to survive on the
     // client_codes row itself for /token to check it later. DEFAULT '' lets this run against a

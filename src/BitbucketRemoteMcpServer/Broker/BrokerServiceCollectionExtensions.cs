@@ -31,7 +31,7 @@ public static class BrokerServiceCollectionExtensions
         services.AddSingleton<RegisteredClientStore>();
         services.AddHostedService<TokenStoreJanitor>();
 
-        // The authorization-server pieces Phase 3 adds on top of Phase 2's storage: this
+        // The authorization-server pieces layered on top of the storage registered above: this
         // server's own signing key, PKCE/redirect-uri/client-lookup helpers, the upstream
         // (Bitbucket) OAuth leg, and JWT issuance.
         services.AddSingleton<SigningKeyProvider>();

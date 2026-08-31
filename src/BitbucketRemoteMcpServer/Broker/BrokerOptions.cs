@@ -79,8 +79,8 @@ public sealed class BrokerOptions
 
     /// <summary>Lifetime of the refresh token this server issues to MCP clients — deliberately
     /// its own policy, independent of Bitbucket's upstream refresh-token lifetime, which Bitbucket
-    /// does not return and so cannot be measured directly (the upstream access-token lifetime is
-    /// 7200 seconds / 2 hours, confirmed against a live broker database).</summary>
+    /// does not return and so cannot be measured directly (the upstream access token itself is
+    /// issued with a 7200 second / 2 hour lifetime).</summary>
     public int IssuedRefreshTokenLifetimeDays { get; set; } = 30;
 }
 
