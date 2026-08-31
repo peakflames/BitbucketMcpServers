@@ -1,7 +1,7 @@
 namespace BitbucketRemoteMcpServer.Tests;
 
 /// <summary>
-/// Proves the Phase 0 breaking change actually took effect: the legacy `/sse`, `/message`, and
+/// Proves the transport breaking change actually took effect: the legacy `/sse`, `/message`, and
 /// root `/` mounts are gone, `/mcp` is stateless (no Mcp-Session-Id), and both the handshake and
 /// tools/list still work end to end.
 /// </summary>

@@ -7,8 +7,8 @@ public class Program
     public static int Main(string[] args)
     {
         // Not a general-purpose CLI mode — exists solely so the trimmed, single-file `dotnet
-        // publish` output can be verified directly, per Phase 2's stop point. See
-        // BrokerStorageSelfTest's own remarks for why building from source can't substitute.
+        // publish` output can be verified directly. See BrokerStorageSelfTest's own remarks
+        // for why building from source can't substitute.
         if (args.Length == 2 && args[0] == "--self-test-broker-storage")
         {
             return Broker.BrokerStorageSelfTest.Run(args[1]);
@@ -164,8 +164,8 @@ public class Program
 
         // Also disabled by default: the token-broker storage layer, and the authorization-server
         // endpoints (/authorize, /oauth/callback, /token, DCR built-but-disabled) built on top of
-        // it. Registering the SQLite stores here, ahead of the broker logic itself, means Phase 2
-        // was verifiable in isolation before Phase 3's endpoints existed.
+        // it. Registering the SQLite stores here, ahead of the broker logic itself, keeps the
+        // storage layer verifiable in isolation from the endpoints built on top of it.
         var brokerEnabled = builder.AddBroker();
 
         // Test-only seam: lets tests substitute a service (e.g. a fake IBitbucketClientFactory,

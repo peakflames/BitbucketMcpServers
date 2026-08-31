@@ -1,7 +1,7 @@
 namespace BitbucketRemoteMcpServer.Tests.Broker;
 
 /// <summary>
-/// Exercises the Phase 2 SQLite token store directly, against a real database file on disk — not
+/// Exercises the SQLite token store directly, against a real database file on disk — not
 /// an in-memory connection string — so that WAL mode, the busy timeout, and restart survival are
 /// actually being tested rather than assumed. Each test gets its own temp file via
 /// <see cref="IAsyncLifetime"/> equivalents (constructor/dispose), so tests can run in parallel

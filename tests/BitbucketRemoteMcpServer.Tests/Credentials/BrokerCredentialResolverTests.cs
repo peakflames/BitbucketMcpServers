@@ -3,7 +3,7 @@ namespace BitbucketRemoteMcpServer.Tests.Credentials;
 /// <summary>
 /// Exercises <see cref="BrokerCredentialResolver"/> directly against the real SQLite stores
 /// <see cref="BrokerIntegrationFixture"/> wires up, rather than through the HTTP endpoints —
-/// this is the seam Phase 4 adds between a validated caller and their own Bitbucket access
+/// this is the seam between a validated caller and their own Bitbucket access
 /// token, and the "two different callers get two different tokens" test here is the mechanism
 /// behind the acceptance bar (two callers, same tool call, different results).
 /// </summary>
