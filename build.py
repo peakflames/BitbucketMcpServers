@@ -231,10 +231,18 @@ def run_dotnet_command(command: str) -> None:
         
         elif command == "stop":
             stop_background()
-        
+
         elif command == "status":
             check_status()
-        
+
+        elif command == "test":
+            print("Running test suite...")
+            subprocess.run(
+                ["dotnet", "test", SOLUTION_PATH],
+                check=True
+            )
+            print("✓ Test suite passed")
+
         else:
             print(f"Unknown command: {command}")
             print_usage()
@@ -325,7 +333,7 @@ async def run_mcp_command(subcommand: str, tool_name: Optional[str] = None,
         print("Start it first with: python build.py start")
         return 1
     
-    mcp_url = f"http://localhost:{DEV_PORT}/sse"
+    mcp_url = f"http://localhost:{DEV_PORT}/mcp"
     
     try:
         # Pass timeout to client constructor - this applies to all MCP operations
@@ -449,6 +457,7 @@ def print_usage() -> None:
     print("  start        - Build and start in background (port 5107)")
     print("  stop         - Stop the background application")
     print("  status       - Check if application is running")
+    print("  test         - Run the test suite (dotnet test)")
     print("")
     print("MCP Commands (requires: pip install fastmcp psutil):")
     print("  mcp ping                 - Check MCP server connectivity")
@@ -464,8 +473,7 @@ def print_usage() -> None:
     print("  log --tail 100 --level error - Combine options")
     print("")
     print("URLs (when running):")
-    print(f"  http://localhost:{DEV_PORT}              - Landing page")
-    print(f"  http://localhost:{DEV_PORT}/sse          - MCP SSE endpoint")
+    print(f"  http://localhost:{DEV_PORT}/mcp          - MCP Streamable HTTP endpoint")
     print("")
     print("Examples:")
     print("  python build.py start                       # Build and start server")
@@ -546,7 +554,7 @@ def main() -> None:
         return
     
     # Commands that need dotnet
-    if command not in ["build", "run", "start"]:
+    if command not in ["build", "run", "start", "test"]:
         print(f"Unknown command: {command}")
         print_usage()
         sys.exit(1)

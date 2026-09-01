@@ -3,7 +3,6 @@ namespace BitbucketMcpTools;
 
 public partial class PullRequestTools
 {
-    // [RequiresUnreferencedCode("Uses Polarion API which requires reflection")]
     [McpServerTool(Name = "list_pull_open_requests"),
         Description(
             "Gets all open pull requests in the Bitbucket repository. " +

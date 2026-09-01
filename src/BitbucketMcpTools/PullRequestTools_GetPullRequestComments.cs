@@ -1,8 +1,7 @@
 namespace BitbucketMcpTools;
 
 public partial class PullRequestTools
-{  
-    // [RequiresUnreferencedCode("Uses Polarion API which requires reflection")]
+{
     [McpServerTool(Name = "get_pull_request_comments"),
         Description(
             "Gets all comments for a specific pull request in the Bitbucket repository. " +
