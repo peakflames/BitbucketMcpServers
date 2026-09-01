@@ -8,10 +8,17 @@ MCP Tools are available for Bitbucket operations, including:
 - `list_pull_requests`: Gets pull requests in a Bitbucket repository filtered by state (Open, Merged, Declined, Superseded), including draft status.
 - `get_pull_request_comments`: Gets comments for a specific pull request.
 - `get_pull_request_details`: Gets detailed information about a pull request including description, metadata (including draft status), and changed files.
+- `read_file`: Reads the raw contents of a file in a repository at a given revision.
+- `list_directory`: Shallow listing of files and directories in a repository path at a given revision.
+- `search_code`: Searches code content across all repositories in the workspace.
+- `list_repositories`: Lists repositories in the workspace, with optional name filtering.
+- `list_branches`: Lists branches in a repository, with optional name filtering.
+- `list_commits`: Lists commit history for a repository or branch.
+- `get_commit`: Gets detailed information about a single commit by hash.
 
 ## Projects
 
-- **BitbucketRemoteMcpServer**: ASP.NET Web API-based MCP server for server-based installations (Streamable HTTP or SSE transport)
+- **BitbucketRemoteMcpServer**: ASP.NET Web API-based MCP server for server-based installations (Streamable HTTP transport)
 - **BitbucketMcpServer**: Console-based MCP server for local workstation installations (stdio transport)
 
 ## Running via Docker & Linux Server (Recommended)
@@ -39,20 +46,8 @@ MCP Tools are available for Bitbucket operations, including:
    }
    ```
 
-4. Run the Docker container with your chosen authentication method:
+4. Run the container. See [Authentication](#authentication) below to choose and configure a credential method — the example below uses the default shared-credential mode:
 
-   **Using OAuth 2.0 (Recommended):**
-   ```bash
-   docker run -d \
-     --name bitbucket-mcp-server \
-     -p 8080:8080 \
-     -e BITBUCKET_MCP_CONSUMER_KEY="your_consumer_key" \
-     -e BITBUCKET_MCP_SECRET_KEY="your_secret_key" \
-     -v $(pwd)/appsettings.json:/app/appsettings.json \
-     peakflames/bitbucket-remote-mcp-server
-   ```
-
-   **Using Basic Authentication:**
    ```bash
    docker run -d \
      --name bitbucket-mcp-server \
@@ -64,22 +59,31 @@ MCP Tools are available for Bitbucket operations, including:
    ```
 
 5. The server should now be running. MCP clients will connect using:
-   - **Streamable HTTP Transport**: `http://{{your-server-ip}}:8080/`
-   - **SSE Transport**: `http://{{your-server-ip}}:8080/sse`
+   - **Streamable HTTP Transport**: `http://{{your-server-ip}}:8080/mcp`
 
 ### Configuration Options (`appsettings.json`)
-
-The server uses `appsettings.json` for configuration with a single set of credentials that can access any repository in your Bitbucket account.
 
 | Setting | Description | Required | Default |
 |---------|-------------|----------|---------|
 | `AccountName` | The Bitbucket workspace/account name | Yes | N/A |
 
-**Note:** Authentication credentials (either OAuth 2.0 or Basic Auth) are retrieved from environment variables at startup (see Environment Variables section below).
+Authentication credentials are retrieved from environment variables at startup — see
+[Authentication](#authentication) below.
 
-### Environment Variables
+## Authentication
 
-The server supports two authentication methods: **OAuth 2.0 Client Credentials** and **Basic Authentication**. You must configure one of these methods using environment variables.
+The server supports two ways to authenticate to Bitbucket, chosen by which environment variables
+and config sections are set:
+
+- **Shared credential (default)** — one identity, configured by the deployer, used for every
+  caller.
+- **Per-user OAuth (Broker)** — each caller signs in with their own Bitbucket account, and every
+  tool call is scoped to that caller's own Bitbucket permissions.
+
+### Shared credential (default)
+
+The server supports two authentication methods: **OAuth 2.0 Client Credentials** and **Basic
+Authentication**. Configure one of these methods using environment variables.
 
 #### OAuth 2.0 Client Credentials (Recommended for Production)
 
@@ -108,7 +112,18 @@ set BITBUCKET_MCP_SECRET_KEY=your_secret_key
 2. Navigate to **Settings** > **OAuth consumers**
 3. Click **Add consumer**
 4. Configure the consumer with the necessary permissions (e.g., repositories read/write, pull requests)
-5. Save and note your Consumer Key and Consumer Secret
+5. **Callback URL**: Bitbucket requires a value here, but this authentication method never uses it —
+   see the note below. Any syntactically valid URL works, e.g. `https://example.com/unused`
+6. Check **This is a private consumer** — required for this grant type
+7. Save and note your Consumer Key and Consumer Secret
+
+> **One consumer covers every environment.** This flow (`client_credentials`, RFC 6749 §4.4) sends
+> the Consumer Key/Secret directly to Bitbucket's token endpoint and never sends a `redirect_uri`,
+> so the consumer's registered Callback URL is never evaluated. The same key/secret pair works
+> unchanged from a workstation, a shared dev server, and production — there is no need to mint a
+> separate consumer per host. This is the opposite of the [Broker's per-user OAuth](#per-user-oauth-broker),
+> which *does* need one consumer per environment because it drives a real browser redirect back to
+> each host's own callback URL.
 
 #### Basic Authentication (Alternative Method)
 
@@ -146,17 +161,136 @@ The server automatically determines which authentication method to use based on 
 
 - **OAuth 2.0 is used** when `BITBUCKET_MCP_CONSUMER_KEY` and `BITBUCKET_MCP_SECRET_KEY` are set
 - **Basic Authentication is used** when `BITBUCKET_MCP_USERNAME` and `BITBUCKET_MCP_API_TOKEN` are set
-- You must provide **either** OAuth 2.0 credentials **or** Basic Auth credentials (not both)
+- Recommended: configure **either** OAuth 2.0 credentials **or** Basic Auth credentials, not both — the server picks OAuth 2.0 if consumer key/secret are present, otherwise falls back to Basic Auth, so mixing the two is unambiguous but usually a sign of leftover config.
 
-### How It Works
+A shared credential (one of the two methods above) is required at startup, unless the Broker is
+enabled — see below.
+
+#### How It Works
 
 1. **Configuration Loading**: On startup, the application loads the AccountName from `appsettings.json`
-2. **Environment Variable Resolution**: At boot time in `Program.cs`, the application reads the authentication credentials from environment variables:
-   - For OAuth 2.0: `BITBUCKET_MCP_CONSUMER_KEY` and `BITBUCKET_MCP_SECRET_KEY`
-   - For Basic Auth: `BITBUCKET_MCP_USERNAME` and `BITBUCKET_MCP_API_TOKEN`
+2. **Environment Variable Resolution**: At boot time in `Program.cs`, the application reads the authentication credentials from environment variables
 3. **Authentication Method Selection**: The server automatically selects OAuth 2.0 if consumer key/secret are provided, otherwise falls back to Basic Authentication
-4. **Tool Invocation**: When an MCP tool is called, the repository name is passed as a function argument
-5. **Client Creation**: A Bitbucket client is created using the credentials resolved from environment variables at startup and the repository slug from the tool's argument
+4. **Client Creation**: For repo-scoped tools (e.g. `read_file`, `list_pull_requests`), a Bitbucket client is created using the shared credential and the repository slug passed as a tool argument. For workspace-scoped tools (`list_repositories`, `search_code`), the client is validated against the workspace itself instead — no repository name is needed
+
+### Per-user OAuth (Broker)
+
+Instead of one shared identity, the Broker turns the server into its own OAuth 2.1 authorization
+server that delegates sign-in to Bitbucket. Each caller connects, authenticates as themselves
+against Bitbucket, and every subsequent tool call resolves and uses that caller's own Bitbucket
+access token — so two different authenticated callers hitting the same tool see results scoped to
+their own real Bitbucket read permissions rather than one shared identity's.
+
+The Broker is disabled by default and requires `McpAuth:Enabled` (the OAuth 2.1 resource-server
+gate in front of `/mcp`) to also be enabled — without it, no caller would present a token for the
+Broker to resolve, and the server refuses to start rather than accept tool calls it can't
+authenticate.
+
+```jsonc
+"McpAuth": {
+  "Enabled": true,
+  "Issuer": "",              // ignored once Broker:Enabled is true — see below
+  "ResourceUri": "",         // this server's own canonical URL, e.g. https://your-mcp-server-url/mcp
+  "ScopesSupported": ["bitbucket:read"],
+  "ClockSkewSeconds": 30
+},
+"Broker": {
+  "Enabled": true,
+  "DatabasePath": "data/broker.db",       // relative paths resolve against the working directory
+  "IssuerUri": "",                        // this server's own base URL, e.g. https://your-mcp-server-url
+  "UpstreamAuthorizeUrl": "https://bitbucket.org/site/oauth2/authorize",
+  "UpstreamTokenUrl": "https://bitbucket.org/site/oauth2/access_token",
+  "UpstreamUserInfoUrl": "https://api.bitbucket.org/2.0/user",
+  "UpstreamClientId": "",                 // the Bitbucket OAuth consumer's key
+  "UpstreamClientSecret": "",             // the Bitbucket OAuth consumer's secret — see below, do not put this inline
+  "UpstreamScopes": ["account", "repository", "pullrequest"],
+  "DcrEnabled": false,                    // POST /register (RFC 7591) — built, off by default
+  "StaticClients": [],                    // pre-registered public clients: [{ "ClientId": "...", "RedirectUris": ["..."] }]
+  "TransactionLifetimeMinutes": 15,
+  "ClientCodeLifetimeMinutes": 5,
+  "IssuedAccessTokenLifetimeMinutes": 60,
+  "IssuedRefreshTokenLifetimeDays": 30
+}
+```
+
+With `Broker:Enabled`, `McpAuth`'s resource-server gate automatically trusts this server's own
+signing key (persisted in the database, so a restart doesn't invalidate outstanding tokens)
+instead of fetching discovery/JWKS from `McpAuth:Issuer` — that setting still has to be a
+syntactically valid URI to pass validation, but its value stops mattering once the Broker is on.
+
+**Supplying `Broker:UpstreamClientSecret` (and any other Broker secret).** Do not put a real
+secret value inline in `appsettings.json` — per this repo's convention, every secret is supplied
+through an environment variable at boot, using the ASP.NET Core double-underscore (`__`)
+convention to address a nested config key:
+
+```bash
+export Broker__UpstreamClientSecret="your_bitbucket_oauth_consumer_secret"
+```
+
+```powershell
+$env:Broker__UpstreamClientSecret = "your_bitbucket_oauth_consumer_secret"
+```
+
+**Mounting the SQLite database.** `Broker:DatabasePath` defaults to `data/broker.db`, relative to
+the working directory — `/app/data/broker.db` inside the container. Mount a persistent volume
+there, or every user's stored token is lost on container restart (the server falls back to a
+temp-directory path and logs a warning if the configured directory isn't writable — that fallback
+does **not** survive a restart):
+
+```bash
+docker run -d \
+  --name bitbucket-mcp-server \
+  -p 8080:8080 \
+  -e McpAuth__Enabled="true" \
+  -e McpAuth__ResourceUri="https://your-mcp-server-url/mcp" \
+  -e Broker__Enabled="true" \
+  -e Broker__IssuerUri="https://your-mcp-server-url" \
+  -e Broker__UpstreamClientId="your_bitbucket_oauth_consumer_key" \
+  -e Broker__UpstreamClientSecret="your_bitbucket_oauth_consumer_secret" \
+  -v $(pwd)/appsettings.json:/app/appsettings.json \
+  -v $(pwd)/data:/app/data \
+  peakflames/bitbucket-remote-mcp-server
+```
+
+**Requesting the Bitbucket OAuth consumer:** unlike the shared client-credentials method above, the
+Broker drives a real browser redirect back to Bitbucket, so its consumer registration matters and is
+**not** interchangeable across hosts.
+
+- **Consumer type** — check **This is a private consumer** in the Bitbucket UI.
+- **Callback URL** — `<Broker:IssuerUri>/oauth/callback`, exactly matching the value the Broker sends
+  as `redirect_uri`.
+- **Permissions** — scoped to read-only Account/Repositories/Pull requests.
+- **One consumer per environment.** Bitbucket matches the incoming `redirect_uri` against the
+  consumer's configured Callback URL with **scheme and host (including port) matched exactly, and
+  only the path matched by prefix**. A mismatch on scheme or host is rejected outright — it is not a
+  looser "prefix" match on the whole URL. Concretely:
+
+  | Environment | `Broker:IssuerUri` | Consumer Callback URL |
+  |---|---|---|
+  | Local dev | `http://localhost:5107` | `http://localhost:5107/oauth/callback` |
+  | Shared dev server | `https://mcp-dev.example.com` | `https://mcp-dev.example.com/oauth/callback` |
+  | Production | `https://mcp.example.com` | `https://mcp.example.com/oauth/callback` |
+
+  A `localhost` consumer cannot also serve a production host, and vice versa — register a separate
+  consumer for each. If the scheme or host doesn't match, Bitbucket's token endpoint rejects the
+  exchange with `"Scheme must match configured redirect uri"` or `"host must match configured
+  redirect uri"`; seeing either error means the wrong consumer (or the wrong `Broker:IssuerUri`) is
+  configured for this environment.
+
+**`Broker:IssuerUri` and `McpAuth:ResourceUri` constraints** — these must be an absolute URI,
+`https` outside the `Development` environment (plain `http` is only accepted in `Development`),
+with no fragment, no path, and no trailing slash. The server enforces these with
+`ValidateOnStart`, so a malformed value fails at boot with a clear error rather than at runtime.
+
+**`Broker:StaticClients`** is the non-DCR way to pre-register a client (e.g. Claude Code with a
+fixed `oauth.clientId`) — public clients only, no secret; PKCE is the confidentiality mechanism.
+DCR-registered clients (`Broker:DcrEnabled: true`) live in the database instead.
+
+The database needs exactly one writer, so run at most one replica when the Broker is enabled.
+Bitbucket access/refresh tokens are stored in plaintext (they must be replayed to Bitbucket
+verbatim); everything else that only needs to be verified — client codes, the refresh tokens this
+server issues, DCR client secrets — is stored hashed. Encryption of the database file itself is a
+volume-level concern, not something this application layer does.
 
 ## Configuring MCP Clients
 
@@ -173,8 +307,8 @@ The server automatically determines which authentication method to use based on 
          "autoApprove": [],
          "disabled": false,
          "timeout": 60,
-         "url": "http://{{your-server-ip}}:8080/sse",
-         "transportType": "sse"
+         "url": "http://{{your-server-ip}}:8080/mcp",
+         "transportType": "streamableHttp"
        }
      }
    }
@@ -185,7 +319,7 @@ The server automatically determines which authentication method to use based on 
 **"Environment variable not set" error:**
 - For OAuth 2.0: Ensure both `BITBUCKET_MCP_CONSUMER_KEY` and `BITBUCKET_MCP_SECRET_KEY` are set
 - For Basic Auth: Ensure both `BITBUCKET_MCP_USERNAME` and `BITBUCKET_MCP_API_TOKEN` are set
-- The application validates the required credentials at startup and will fail to start if they are not properly configured
+- The application validates the required credentials at startup and will fail to start if they are not properly configured, unless `Broker:Enabled` is `true` — in that case no shared credential is needed
 - Make sure you're using one complete authentication method, not mixing variables from both
 
 **Connection errors:**
@@ -193,7 +327,7 @@ The server automatically determines which authentication method to use based on 
 - For OAuth 2.0: Ensure the consumer key and secret are valid and the OAuth consumer is active in Bitbucket
 - For Basic Auth: Ensure the app password has the necessary permissions for the repositories you're accessing
 - Check that the account name in the configuration is correct
-- Verify that the repository name passed to the tool matches an actual repository in your account
+- For repo-scoped tools, verify that the repository name passed to the tool matches an actual repository in your account
 
 **Permission errors:**
 - For OAuth 2.0: Verify the OAuth consumer has the required scopes (e.g., repositories read/write, pull requests)

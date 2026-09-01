@@ -12,10 +12,6 @@ public partial class RepositoryTools
             "Read-only."
         )]
     public async Task<string> SearchCode(
-        [Description("The name of a Bitbucket repository used only to establish workspace access/credentials. " +
-            "The search itself spans the whole workspace unless narrowed with 'repo:<slug>' in the query.")]
-        string repoName,
-
         [Description("The search query string. Supports Bitbucket code search syntax, including the 'repo:<slug>' qualifier to narrow scope.")]
         string query,
 
@@ -24,7 +20,7 @@ public partial class RepositoryTools
     {
         await using var scope = _serviceProvider.CreateAsyncScope();
         var clientFactory = scope.ServiceProvider.GetRequiredService<IBitbucketClientFactory>();
-        var clientResult = await clientFactory.CreateClientAsync(repoName);
+        var clientResult = await clientFactory.CreateWorkspaceClientAsync();
 
         if (clientResult.IsFailed)
         {

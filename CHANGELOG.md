@@ -5,6 +5,60 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.0] - 2026-09-01
+
+### Added
+- **`McpAuth`** config section (default off): when enabled, `POST /mcp` requires an RS256 bearer
+  token from an external OIDC authorization server — issuer, audience, lifetime, and signing key
+  are all validated — **and** a `bitbucket:read` scope claim (`scope` or `scp`). Unauthenticated
+  requests get a 401 carrying an RFC 9728 `resource_metadata` challenge, served from
+  `/.well-known/oauth-protected-resource/mcp`. This server never issues these tokens itself.
+- **`Broker`** config section (default off; requires `McpAuth:Enabled`, or the server refuses to
+  start): the server becomes its own OAuth 2.1 authorization server that delegates sign-in to
+  Bitbucket, adding `/authorize`, `/oauth/callback`, `/token`, `/register` (RFC 7591 dynamic client
+  registration, itself off by default behind `Broker:DcrEnabled`),
+  `/.well-known/oauth-authorization-server`, and `/.well-known/jwks.json`. Every tool call then
+  resolves the *caller's own* Bitbucket token from a SQLite-backed store instead of one shared
+  identity, so two authenticated callers see results scoped to their own real Bitbucket
+  permissions. A caller with no live token, or whose refresh was rejected, gets a "reconnect and
+  re-authenticate" error rather than a silent fallback to the shared credential. Configuration,
+  secret handling, and the required database volume mount:
+  [README.md → Per-user OAuth (Broker)](README.md#per-user-oauth-broker).
+- `--self-test-broker-storage <path>` command-line mode on `BitbucketRemoteMcpServer`, which
+  exercises the broker's SQLite store and exits without starting the host
+- A test suite under `tests/`, run with `python build.py test`
+
+### Changed
+- **BREAKING:** `list_repositories` and `search_code` no longer take a `repoName` parameter, on
+  both the stdio and remote servers. It existed only to bootstrap a credential against an arbitrary
+  named repository for what are workspace-wide operations; the credential is now validated against
+  the workspace itself (`GET /workspaces/{workspace}`). Implementers of `IBitbucketClientFactory`
+  must add `CreateWorkspaceClientAsync()`.
+- `ModelContextProtocol`/`ModelContextProtocol.AspNetCore` 0.7.0-preview.1 → 2.1.0 (all three
+  projects)
+- `SharpBucket` 0.17.0 → `Peakflames.SharpBucket` 0.18.0 — a fork that accepts an externally
+  obtained bearer token, which upstream cannot (it can only run its own client-credentials grant).
+  No API changes for this project's usage.
+- MCP HTTP transport is now stateless — no `Mcp-Session-Id` is issued
+- The shared Bitbucket credential (`BITBUCKET_MCP_USERNAME`/`BITBUCKET_MCP_API_TOKEN`, or the OAuth
+  2.0 client-credentials pair) is no longer required at boot when `Broker:Enabled` is true.
+  Deployments not using the broker are unaffected — a shared credential is still required.
+
+### Removed
+- **BREAKING:** the `/sse`, `/message`, and root `/` MCP mounts. `/mcp` (Streamable HTTP) is the
+  only endpoint — update any client still pointed at the old URLs. `python build.py mcp *` now
+  connects to `/mcp`
+- The fake-SSE GET-request workaround middleware for the Cline/TypeScript MCP SDK bug, unnecessary
+  under the stateless transport
+- A dead `Polarion` package reference and stale `ReverseMarkdown`/`HtmlAgilityPack` trimmer roots
+  in `BitbucketRemoteMcpServer.csproj`
+
+### Documentation
+- Rewrote the root `README.md`: all 11 MCP tools (previously 4), plus an `## Authentication`
+  section covering both the shared-credential and per-user Broker paths
+- Deleted the stale, unlinked `src/BitbucketRemoteMcpServer/README.md`, folding its accurate
+  `Broker`/`McpAuth` config tables into the root README; refreshed `CONTRIBUTING.md` and `CLAUDE.md`
+
 ## [0.1.3] - 2026-07-10
 
 ### Added

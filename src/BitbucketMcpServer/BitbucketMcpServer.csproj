@@ -5,7 +5,7 @@
     <TargetFramework>net9.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
-    <Version>0.1.3</Version>
+    <Version>0.2.0</Version>
 
     <!-- Size optimization -->
     <PublishSingleFile>true</PublishSingleFile>
@@ -28,7 +28,7 @@
 
   <ItemGroup>
     <PackageReference Include="Microsoft.Extensions.Hosting" Version="9.0.4" />
-    <PackageReference Include="ModelContextProtocol" Version="0.7.0-preview.1" />
+    <PackageReference Include="ModelContextProtocol" Version="2.1.0" />
     <PackageReference Include="Serilog.Extensions.Hosting" Version="9.0.0" />
     <PackageReference Include="Serilog.Sinks.Console" Version="6.0.0" />
     <PackageReference Include="Serilog.Sinks.Debug" Version="3.0.0" />
@@ -39,12 +39,7 @@
     <ProjectReference Include="..\BitbucketMcpTools\BitbucketMcpTools.csproj" />
   </ItemGroup>
 
-  <!-- copy the config file to the output directory -->
-  <!-- <Target Name="CopyConfigFile" AfterTargets="Build">
-    <Copy SourceFiles="$(MSBuildThisFileDirectory)polarion-mcp.config.json" DestinationFolder="$(OutputPath)" />
-  </Target> -->
-
-  <ItemGroup>    
+  <ItemGroup>
     <TrimmerRootAssembly Include="SharpBucket" />
     <TrimmerRootAssembly Include="Serilog" />
   </ItemGroup>
