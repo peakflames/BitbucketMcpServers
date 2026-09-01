@@ -489,3 +489,9 @@ tmp/
 .bitbucket-mcp.pid
 *.log
 
+# Broker:DatabasePath default ("data/broker.db") and SQLite's WAL/shm sidecar files. Contains
+# live Bitbucket access/refresh tokens once the broker is enabled — never committed.
+data/
+*.db-wal
+*.db-shm
+

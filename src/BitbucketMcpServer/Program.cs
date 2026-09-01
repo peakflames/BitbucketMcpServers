@@ -3,10 +3,8 @@ using BitbucketMcpTools;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Serilog;
-using SharpBucket.V2.Pocos;
 
-
-namespace PolarionMcpServer;
+namespace BitbucketMcpServer;
 
 [RequiresUnreferencedCode("Uses reflection")]
 public class Program
