@@ -9,15 +9,12 @@ public partial class RepositoryTools
             "Read-only."
         )]
     public async Task<string> ListRepositories(
-        [Description("The name of a Bitbucket repository used only to establish workspace access/credentials; the listing itself spans the whole workspace.")]
-        string repoName,
-
         [Description("An optional substring filter applied to the repository name/slug. Omit to list all repositories.")]
         string? filter = null)
     {
         await using var scope = _serviceProvider.CreateAsyncScope();
         var clientFactory = scope.ServiceProvider.GetRequiredService<IBitbucketClientFactory>();
-        var clientResult = await clientFactory.CreateClientAsync(repoName);
+        var clientResult = await clientFactory.CreateWorkspaceClientAsync();
 
         if (clientResult.IsFailed)
         {
