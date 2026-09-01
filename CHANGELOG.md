@@ -7,136 +7,57 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [0.2.0] - Unreleased
 
-SDK upgrade, stateless transport, a testability seam, and an optional OAuth 2.1 resource server —
-plus, on top of it, an optional token broker that resolves each caller's own Bitbucket credential
-instead of one shared identity. Both are disabled by default. No behavior change for existing
-callers who don't opt in, other than the transport removal below.
-
 ### Added
-- `McpAuth` config section: when `McpAuth:Enabled` is `true`, `POST /mcp` requires a bearer token
-  (RS256, validated issuer/audience/lifetime/signing key) issued by an external authorization
-  server, and the server answers unauthenticated requests with a 401 carrying an RFC 9728
-  `resource_metadata` challenge plus the corresponding `/.well-known/oauth-protected-resource/mcp`
-  document. The server never issues tokens itself — Okta (or any OIDC-compliant AS) is external.
-- Test harness: `tests/BitbucketRemoteMcpServer.Tests`, `tests/StubAuthorizationServer` (mints
-  JWTs in-test, no network/Okta dependency), and `tests/Fakes` (a real local Bitbucket-shaped HTTP
-  server + a fake `IBitbucketClientFactory` for golden-output coverage, since `Peakflames.SharpBucket`
-  has no in-memory HTTP injection point). Test coverage: `AuthDisabledRegressionTests`,
-  `ChallengeAndDiscoveryTests`, `ResourceServerTokenValidationTests` (valid/expired/wrong-issuer/
-  wrong-audience/unsigned/unknown-signing-key tokens)
-- `python build.py test` to run the test suite
-- `BitbucketClient` accepts an optional `baseUrl` constructor parameter (test-only seam; `null`
-  in every production code path, so behavior is unchanged)
-- `BitbucketRemoteMcpServer.Program` exposes `BuildApp(args, configure, postAuthConfigure)` so
-  tests can drive the app via `UseTestServer()` instead of a real listener
-- `BitbucketClient` accepts an optional `accessToken` constructor parameter. When supplied it is
-  sent as an `Authorization: Bearer` header and takes precedence over the shared service
-  credentials; when omitted, the existing client-credentials and basic-auth paths are unchanged.
-  Backed by `OAuth2BearerToken` in `Peakflames.SharpBucket`, which upstream `SharpBucket` does
-  not provide — it can only run the client-credentials grant itself, never accept a token that
-  was obtained elsewhere. This is the seam per-caller credentials will ride on.
-- `FakeBitbucketServer` records the `Authorization` header of every request it receives, so tests
-  can assert what was actually put on the wire rather than what the client was configured with
-- `Broker` config section: `Broker:Enabled` (default `false`) starts a SQLite-backed token store —
-  `oauth_transactions`, `client_codes`, `upstream_tokens`, `jti_mappings`, `our_refresh_tokens`,
-  `registered_clients`, `app_meta` — plus a background janitor that sweeps expired rows every
-  minute. On its own this changes nothing observable; it is the storage layer the authorization
-  server below is built on. WAL journaling and a busy timeout are applied to every connection; the
-  database needs exactly one writer, so run at most one replica when enabled. Bitbucket
-  access/refresh tokens are stored in plaintext (they must be replayed to Bitbucket verbatim);
-  client codes, this server's own issued refresh tokens, and DCR client secrets are stored hashed,
-  compared in constant time. If the configured `Broker:DatabasePath` directory is not writable, the
-  server falls back to a temp path and logs a warning rather than crash-looping — data does not
-  survive a restart in that fallback.
-- With `Broker:Enabled`, this server becomes its own OAuth 2.1 authorization server, delegating the
-  actual sign-in to Bitbucket: `GET /.well-known/oauth-authorization-server`, `GET /authorize`,
-  `GET /oauth/callback`, `POST /token`, and `GET /.well-known/jwks.json`. Modeled on FastMCP's
-  `OAuthProxy` — two independent PKCE pairs (the client's, verified at `/token`; this server's own,
-  used only against Bitbucket), a consent-binding cookie defending `/oauth/callback` against a
-  confused-deputy replay, and a `state`=transaction-id substitution so Bitbucket never sees the
-  client's own `state`. Never forwards a client-supplied RFC 8707 `resource` parameter upstream —
-  Bitbucket Cloud rejects it with `invalid_target` — binding it to this server's own issued JWT
-  `aud` instead. `McpAuth`'s resource-server gate automatically trusts this server's own signing
-  key (persisted in `app_meta`, survives a restart) once the broker is enabled, rather than trying
-  to fetch its own discovery document over HTTP. `POST /register` (Dynamic Client Registration,
-  RFC 7591) is implemented but ships disabled via `Broker:DcrEnabled` — `Broker:StaticClients`
-  covers the pre-configured-`clientId` case Claude Code and similar clients already support.
-  Verified end-to-end against real Bitbucket and a real Claude Code client, including via
-  Dynamic Client Registration.
-- `POST /register` always issues an opaque `client_secret`, even for a client that requested a
-  public (`token_endpoint_auth_method: none`) registration — some clients reject a DCR response
-  that omits `client_secret` outright, so a secret is minted and stored hashed either way. Unlike
-  `Broker:StaticClients` (public clients only, no secret), a DCR-registered client always gets one;
-  PKCE remains mandatory for both.
-- Per-user Bitbucket credentials when `Broker:Enabled` is true: `BrokerCredentialResolver` reads
-  the caller's own `jti` claim off their validated JWT, maps it to their own stored Bitbucket
-  access/refresh token, and hands that token to `BitbucketClient` instead of the shared service
-  credential — refreshing and persisting it first if it has expired. Every tool call that reaches
-  Bitbucket resolves its credential through this same seam (`IUpstreamCredentialResolver`), so two
-  different authenticated callers hitting the same tool see results scoped to their own real
-  Bitbucket read permissions rather than one shared identity's. Falls back to
-  `SharedCredentialResolver` (today's behavior, unchanged) whenever the broker is disabled, and
-  never falls back to it silently on a resolution or refresh failure — a caller with no live
-  token, or one whose refresh was rejected, gets a clear "reconnect and re-authenticate" error
-  instead of borrowing the shared credential's access.
+- **`McpAuth`** config section (default off): when enabled, `POST /mcp` requires an RS256 bearer
+  token from an external OIDC authorization server — issuer, audience, lifetime, and signing key
+  are all validated — **and** a `bitbucket:read` scope claim (`scope` or `scp`). Unauthenticated
+  requests get a 401 carrying an RFC 9728 `resource_metadata` challenge, served from
+  `/.well-known/oauth-protected-resource/mcp`. This server never issues these tokens itself.
+- **`Broker`** config section (default off; requires `McpAuth:Enabled`, or the server refuses to
+  start): the server becomes its own OAuth 2.1 authorization server that delegates sign-in to
+  Bitbucket, adding `/authorize`, `/oauth/callback`, `/token`, `/register` (RFC 7591 dynamic client
+  registration, itself off by default behind `Broker:DcrEnabled`),
+  `/.well-known/oauth-authorization-server`, and `/.well-known/jwks.json`. Every tool call then
+  resolves the *caller's own* Bitbucket token from a SQLite-backed store instead of one shared
+  identity, so two authenticated callers see results scoped to their own real Bitbucket
+  permissions. A caller with no live token, or whose refresh was rejected, gets a "reconnect and
+  re-authenticate" error rather than a silent fallback to the shared credential. Configuration,
+  secret handling, and the required database volume mount:
+  [README.md → Per-user OAuth (Broker)](README.md#per-user-oauth-broker).
+- `--self-test-broker-storage <path>` command-line mode on `BitbucketRemoteMcpServer`, which
+  exercises the broker's SQLite store and exits without starting the host
+- A test suite under `tests/`, run with `python build.py test`
 
 ### Changed
+- **BREAKING:** `list_repositories` and `search_code` no longer take a `repoName` parameter, on
+  both the stdio and remote servers. It existed only to bootstrap a credential against an arbitrary
+  named repository for what are workspace-wide operations; the credential is now validated against
+  the workspace itself (`GET /workspaces/{workspace}`). Implementers of `IBitbucketClientFactory`
+  must add `CreateWorkspaceClientAsync()`.
 - `ModelContextProtocol`/`ModelContextProtocol.AspNetCore` 0.7.0-preview.1 → 2.1.0 (all three
   projects)
-- `SharpBucket` 0.17.0 → the published `Peakflames.SharpBucket` 0.18.0 package (previously a local
-  `ProjectReference` to the fork's source). No API changes for this project's usage; same fork,
-  now consumed as a NuGet package like any other dependency.
-- MCP HTTP transport is now stateless (`WithHttpTransport(o => o.Stateless = true)`) — no
-  `Mcp-Session-Id` is issued
-- Credential env vars (`BITBUCKET_MCP_USERNAME`, `BITBUCKET_MCP_API_TOKEN`,
-  `BITBUCKET_MCP_CONSUMER_KEY`, `BITBUCKET_MCP_SECRET_KEY`) are now read through
-  `IConfiguration` rather than `Environment.GetEnvironmentVariable` directly — same values at
-  runtime, but testable without mutating process-wide environment state
-- **BREAKING:** `list_repositories` and `search_code` no longer take a `repoName` parameter. It
-  existed only to bootstrap a credential against an arbitrary named repository for what are
-  actually workspace-wide operations; `IBitbucketClientFactory.CreateWorkspaceClientAsync()`
-  validates the resolved credential against the workspace itself instead (`GET
-  /workspaces/{workspace}`), so no repository name is needed to call either tool
-- The shared Bitbucket credential (`BITBUCKET_MCP_USERNAME`/`BITBUCKET_MCP_API_TOKEN` or the OAuth
-  2.0 client-credentials pair) is no longer required at boot when `Broker:Enabled` is `true` —
-  `BrokerCredentialResolver` resolves every caller's own credential per-request and never falls
-  back to a shared one, so a deployment running only the broker no longer needs a shared identity
-  to exist at all. Deployments not using the broker are unaffected; a shared credential is still
-  required as before.
-
-### Fixed
-- JSON serialization crashes in every broker OAuth endpoint (`/.well-known/oauth-authorization-server`,
-  `/.well-known/jwks.json`, `/register`, `/token`, and error responses in `/authorize` and
-  `/oauth/callback`). `PublishTrimmed` disables reflection-based `System.Text.Json` serialization
-  at runtime — including under plain `dotnet run`, not just a trimmed publish — so the anonymous
-  types and `Dictionary<string, object?>` responses these endpoints used were throwing on every
-  real request despite the test suite (which runs under a host process without that setting)
-  staying green. Replaced with concrete DTOs (`BrokerResponseModels.cs`) backed by a
-  `JsonSerializerContext`. Verified end to end: discovery, JWKS, DCR registration, and a full
-  browser-driven authorization flow against real Bitbucket all now return correct JSON.
+- `SharpBucket` 0.17.0 → `Peakflames.SharpBucket` 0.18.0 — a fork that accepts an externally
+  obtained bearer token, which upstream cannot (it can only run its own client-credentials grant).
+  No API changes for this project's usage.
+- MCP HTTP transport is now stateless — no `Mcp-Session-Id` is issued
+- The shared Bitbucket credential (`BITBUCKET_MCP_USERNAME`/`BITBUCKET_MCP_API_TOKEN`, or the OAuth
+  2.0 client-credentials pair) is no longer required at boot when `Broker:Enabled` is true.
+  Deployments not using the broker are unaffected — a shared credential is still required.
 
 ### Removed
-- **BREAKING:** the `/sse`, `/message`, and root `/` MCP mounts are gone. `/mcp` (Streamable
-  HTTP) is the only endpoint — update any client still pointed at the old URLs. `python build.py
-  mcp *` now connects to `/mcp`
-- The fake-SSE GET-request workaround middleware for the Cline/TypeScript MCP SDK bug — no
-  longer needed under the stateless transport
-- Dead `Polarion`/`ReverseMarkdown`/`HtmlAgilityPack` package references and trimmer roots in
-  `BitbucketRemoteMcpServer.csproj` (stale leftovers; this server has never depended on Polarion)
+- **BREAKING:** the `/sse`, `/message`, and root `/` MCP mounts. `/mcp` (Streamable HTTP) is the
+  only endpoint — update any client still pointed at the old URLs. `python build.py mcp *` now
+  connects to `/mcp`
+- The fake-SSE GET-request workaround middleware for the Cline/TypeScript MCP SDK bug, unnecessary
+  under the stateless transport
+- A dead `Polarion` package reference and stale `ReverseMarkdown`/`HtmlAgilityPack` trimmer roots
+  in `BitbucketRemoteMcpServer.csproj`
 
 ### Documentation
-- Rewrote the root `README.md` to list all 11 MCP tools (previously 4), added an `## Authentication`
-  section covering both the shared-credential and per-user OAuth Broker paths, including how to
-  supply `Broker:UpstreamClientSecret` via an environment variable and how to mount the SQLite
-  database volume
-- Deleted `src/BitbucketRemoteMcpServer/README.md` — unlinked from the rest of the repo, and stale
-  in ways the root README was not (dead `/sse`/`/` endpoints, a since-shipped feature described as
-  "not yet implemented", and a 1-of-11 tool list); its accurate `Broker`/`McpAuth` config tables
-  were folded into the root README instead
-- Fixed stale references in `CONTRIBUTING.md` (wrong Inspector port, `main` instead of `develop`
-  as the base branch, no mention of the `:latest` Docker tag or `python build.py`) and `CLAUDE.md`
-  (wrong package name, missing `Broker`/`Auth`/`Credentials` directories and dependencies, no
-  `test` step in the pre-commit checklist)
+- Rewrote the root `README.md`: all 11 MCP tools (previously 4), plus an `## Authentication`
+  section covering both the shared-credential and per-user Broker paths
+- Deleted the stale, unlinked `src/BitbucketRemoteMcpServer/README.md`, folding its accurate
+  `Broker`/`McpAuth` config tables into the root README; refreshed `CONTRIBUTING.md` and `CLAUDE.md`
 
 ## [0.1.3] - 2026-07-10
 
