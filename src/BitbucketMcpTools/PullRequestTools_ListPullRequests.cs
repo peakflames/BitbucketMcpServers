@@ -36,8 +36,6 @@ public partial class PullRequestTools
         [Description("Only return pull requests targeting this destination branch, e.g. 'main'. Omit for no branch filter.")]
         string? destinationBranch = null)
     {
-        string? returnMsg;
-
         await using (var scope = _serviceProvider.CreateAsyncScope())
         {
             var clientFactory = scope.ServiceProvider.GetRequiredService<IBitbucketClientFactory>();
@@ -103,12 +101,8 @@ public partial class PullRequestTools
             }
             catch (Exception ex)
             {
-                returnMsg = $"ERROR: Failed to get Bitbucket info due to exception '{ex.Message}'";
-                if (ex.InnerException != null)
-                {
-                    returnMsg += $"\nInner Exception: {ex.InnerException.Message}";
-                }
-                return returnMsg;
+                var logger = scope.ServiceProvider.GetService<ILogger<PullRequestTools>>();
+                return ToolErrorFormatter.Format("get Bitbucket info", ex, logger);
             }
         }
     }

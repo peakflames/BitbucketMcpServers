@@ -277,10 +277,24 @@ Broker drives a real browser redirect back to Bitbucket, so its consumer registr
   redirect uri"`; seeing either error means the wrong consumer (or the wrong `Broker:IssuerUri`) is
   configured for this environment.
 
-**`Broker:IssuerUri` and `McpAuth:ResourceUri` constraints** — these must be an absolute URI,
-`https` outside the `Development` environment (plain `http` is only accepted in `Development`),
-with no fragment, no path, and no trailing slash. The server enforces these with
-`ValidateOnStart`, so a malformed value fails at boot with a clear error rather than at runtime.
+**`Broker:IssuerUri` and `McpAuth:ResourceUri` constraints** — the server checks these with
+`ValidateOnStart`, so a value that breaks them fails at boot with a clear error:
+
+- `Broker:IssuerUri` must be an absolute URI, `https` outside the `Development` environment
+  (plain `http` is only accepted in `Development`), with no fragment.
+- `McpAuth:ResourceUri` must be an absolute URI with no fragment. Its scheme is not checked.
+
+Two further rules are **not** checked at startup; a value that breaks them only fails later, at
+sign-in:
+
+- `Broker:IssuerUri` must have no path and no trailing slash. The Broker serves its endpoints at the
+  host root and builds every URL it advertises by appending to this value (`{IssuerUri}/authorize`,
+  `{IssuerUri}/oauth/callback`, and so on), so a trailing slash yields `//oauth/callback`, which no
+  longer matches the Bitbucket consumer's Callback URL.
+- `McpAuth:ResourceUri` is this server's full public MCP URL, **including** the `/mcp` path (e.g.
+  `https://your-mcp-server-url/mcp`). It is the `resource` advertised in the protected-resource
+  metadata and the audience of every token the Broker issues, so set it to exactly the URL clients
+  connect to.
 
 **`Broker:StaticClients`** is the non-DCR way to pre-register a client (e.g. Claude Code with a
 fixed `oauth.clientId`) — public clients only, no secret; PKCE is the confidentiality mechanism.

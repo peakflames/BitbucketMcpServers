@@ -149,8 +149,8 @@ consumers aren't interchangeable across hosts.
    ```
 
 5. Run with `ASPNETCORE_ENVIRONMENT=Development` — that's what permits the plain `http://localhost`
-   values above; outside `Development`, `Broker:IssuerUri` and `McpAuth:ResourceUri` must be `https`
-   and the server fails fast at startup if they aren't.
+   `Broker:IssuerUri` above; outside `Development`, `Broker:IssuerUri` must be `https` and the server
+   fails fast at startup if it isn't. `McpAuth:ResourceUri` has no scheme check in any environment.
 6. The token store lands at `data/broker.db`, relative to the working directory you launch from.
 
 ## Code Standards

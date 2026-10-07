@@ -60,12 +60,8 @@ public partial class RepositoryTools
         }
         catch (Exception ex)
         {
-            var returnMsg = $"ERROR: Failed to list repositories due to exception '{ex.Message}'";
-            if (ex.InnerException != null)
-            {
-                returnMsg += $"\nInner Exception: {ex.InnerException.Message}";
-            }
-            return returnMsg;
+            var logger = scope.ServiceProvider.GetService<ILogger<RepositoryTools>>();
+            return ToolErrorFormatter.Format("list repositories", ex, logger);
         }
     }
 }
