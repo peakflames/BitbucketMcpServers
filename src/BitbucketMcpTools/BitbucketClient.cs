@@ -57,7 +57,7 @@ public class BitbucketClient(string accountName,
             }
             catch (Exception ex)
             {
-                return Result.Fail($"Unable to access workspace: {_accountName}. Error: {ex.Message}");
+                return Result.Fail($"Unable to access workspace: {_accountName}. Error: {ToolErrorFormatter.Describe(ex)}");
             }
 
             return Result.Ok();
@@ -75,7 +75,7 @@ public class BitbucketClient(string accountName,
         }
         catch (Exception ex)
         {
-            return Result.Fail($"Unable to access repository: {_accountName}/{_repoSlug}. Error: {ex.Message}");
+            return Result.Fail($"Unable to access repository: {_accountName}/{_repoSlug}. Error: {ToolErrorFormatter.Describe(ex)}");
         }
 
         return Result.Ok();

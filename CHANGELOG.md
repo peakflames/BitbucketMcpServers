@@ -5,6 +5,22 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.1] - 2026-10-07
+
+### Changed
+- `Peakflames.SharpBucket` 0.18.0 → 0.19.0.
+- Tool errors read `ERROR: Failed to <action>: <status> <upstream text>` instead of
+  `ERROR: Failed to <action> due to exception '<message>'`.
+- Paths and refs that contain `.` or `..` segments, backslashes, `?`, `#`, control characters, or
+  percent-encoded `.`, `/`, and `\` are rejected with `ERROR: Invalid path '<value>': <reason>`
+  (or `Invalid ref`). `list_directory` previously returned an empty listing for `../..`.
+- A single leading `/` in a path is accepted and means the repository root (`/` and `/src`).
+
+### Security
+- Tool error messages no longer include raw upstream exception text, and credential-like values
+  are redacted from both the returned message and the server log.
+- Repository file paths and refs are validated and escaped before a request is built.
+
 ## [0.2.0] - 2026-09-01
 
 ### Added
