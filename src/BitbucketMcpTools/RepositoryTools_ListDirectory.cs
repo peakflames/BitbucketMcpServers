@@ -19,6 +19,18 @@ public partial class RepositoryTools
         [Description("The branch name, tag name, or commit hash to browse. Defaults to the latest commit on the main branch.")]
         string? @ref = null)
     {
+        var pathResult = RepoPathValidator.ValidateAndEscapePath(path, allowEmpty: true);
+        if (pathResult.IsFailed)
+        {
+            return $"ERROR: Invalid path '{path}': {pathResult.Errors.First().Message}";
+        }
+
+        var refResult = RepoPathValidator.ValidateRef(@ref);
+        if (refResult.IsFailed)
+        {
+            return $"ERROR: Invalid ref '{@ref}': {refResult.Errors.First().Message}";
+        }
+
         await using var scope = _serviceProvider.CreateAsyncScope();
         var clientFactory = scope.ServiceProvider.GetRequiredService<IBitbucketClientFactory>();
         var clientResult = await clientFactory.CreateClientAsync(repoName);
@@ -45,7 +57,7 @@ public partial class RepositoryTools
             }
 
             var srcResource = bitBucketClient.RepositoryResource.SrcResource(revision, null);
-            var entries = srcResource.ListSrcEntries(path);
+            var entries = srcResource.ListSrcEntries(string.IsNullOrEmpty(pathResult.Value) ? null : pathResult.Value);
 
             var markdownContents = new StringBuilder();
             var displayPath = string.IsNullOrWhiteSpace(path) ? "/" : path;
@@ -78,12 +90,8 @@ public partial class RepositoryTools
         }
         catch (Exception ex)
         {
-            var returnMsg = $"ERROR: Failed to list directory due to exception '{ex.Message}'";
-            if (ex.InnerException != null)
-            {
-                returnMsg += $"\nInner Exception: {ex.InnerException.Message}";
-            }
-            return returnMsg;
+            var logger = scope.ServiceProvider.GetService<ILogger<RepositoryTools>>();
+            return ToolErrorFormatter.Format("list directory", ex, logger);
         }
     }
 }

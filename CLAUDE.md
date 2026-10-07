@@ -129,7 +129,8 @@ public partial class PullRequestTools
         }
         catch (Exception ex)
         {
-            return $"ERROR: Failed due to exception '{ex.Message}'";
+            var logger = scope.ServiceProvider.GetService<ILogger<PullRequestTools>>();
+            return ToolErrorFormatter.Format("do the thing", ex, logger);
         }
     }
 }
@@ -141,7 +142,8 @@ public partial class PullRequestTools
 - Use curly braces for all blocks
 - Prefer Global Using Statements over Local Using Statements (add to `GlobalUsings.cs`)
 - Prefer FluentResults over null handling or Exceptions for error handling
-- Return error messages with "ERROR:" prefix
+- Return error messages with "ERROR:" prefix, built with `ToolErrorFormatter.Format(...)` — never echo `ex.Message` to the client
+- Validate caller-supplied repository paths and refs with `RepoPathValidator` before any client call
 - Return results in markdown format
 
 ### MCP Tool Attribute Syntax

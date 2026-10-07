@@ -123,12 +123,8 @@ public partial class PullRequestTools
         }
         catch (Exception ex)
         {
-            var returnMsg = $"ERROR: Failed to get pull request details due to exception '{ex.Message}'";
-            if (ex.InnerException != null)
-            {
-                returnMsg += $"\nInner Exception: {ex.InnerException.Message}";
-            }
-            return returnMsg;
+            var logger = scope.ServiceProvider.GetService<ILogger<PullRequestTools>>();
+            return ToolErrorFormatter.Format("get pull request details", ex, logger);
         }
     }
 
@@ -213,7 +209,7 @@ public partial class PullRequestTools
         catch (Exception ex)
         {
             // Log error but don't fail the entire operation
-            System.Diagnostics.Debug.WriteLine($"Error fetching changed files from diffstat: {ex.Message}");
+            System.Diagnostics.Debug.WriteLine($"Error fetching changed files from diffstat: {ToolErrorFormatter.Describe(ex)}");
         }
 
         return changedFiles;
@@ -246,7 +242,7 @@ public partial class PullRequestTools
         }
         catch (Exception ex)
         {
-            System.Diagnostics.Debug.WriteLine($"Error fetching draft flag for pull request {pullRequestId}: {ex.Message}");
+            System.Diagnostics.Debug.WriteLine($"Error fetching draft flag for pull request {pullRequestId}: {ToolErrorFormatter.Describe(ex)}");
             return null;
         }
     }
@@ -322,7 +318,7 @@ public partial class PullRequestTools
         }
         catch (Exception ex)
         {
-            System.Diagnostics.Debug.WriteLine($"Error fetching draft flags for pull requests: {ex.Message}");
+            System.Diagnostics.Debug.WriteLine($"Error fetching draft flags for pull requests: {ToolErrorFormatter.Describe(ex)}");
             return new Dictionary<int, bool>();
         }
 
