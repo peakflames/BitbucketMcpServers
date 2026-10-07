@@ -197,6 +197,7 @@ When the user requests "perform a release":
 2. **Commit and push develop** - Add explicit files, commit with "Release version X.Y.Z" message
 3. **Merge to main** - `git checkout main && git pull && git merge develop --no-ff` with merge commit message, push
 4. **Tag and push** - `git tag -a vX.Y.Z -m "Release version X.Y.Z"`, push tag
-5. **Prepare next version** - Switch to develop, bump versions in both csproj files (Version and ContainerImageTag), add "Unreleased" section to CHANGELOG.md, commit "prepare for next development cycle (X.Y.Z+1)", push
+5. **Merge main back to develop** - `git checkout develop && git merge main --no-ff` with the message "Merge branch 'main' into develop - sync Release version X.Y.Z", push. Do this before the version bump so `develop` contains the release merge commit and the tag is reachable from it. No new tag.
+6. **Prepare next version** - On develop, bump versions in both csproj files (Version and ContainerImageTag), add "Unreleased" section to CHANGELOG.md, commit "prepare for next development cycle (X.Y.Z+1)", push
 
 Important: Use `--no-ff` for merges, explicit file paths in `git add`, never hand-add a real secret value to appsettings*.json
