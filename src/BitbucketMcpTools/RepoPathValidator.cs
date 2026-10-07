@@ -13,7 +13,7 @@ public static class RepoPathValidator
 
     /// <summary>
     /// Validates a repository-relative file or directory path and returns it with each segment
-    /// escaped exactly once, joined with '/'.
+    /// escaped exactly once, joined with '/'. One leading '/' is accepted and means the repository root.
     /// </summary>
     public static Result<string> ValidateAndEscapePath(string? path, bool allowEmpty)
     {
@@ -28,12 +28,14 @@ public static class RepoPathValidator
             return Result.Fail(rejection);
         }
 
-        if (path.StartsWith('/'))
+        // A single leading '/' addresses the repository root ("/" and "/src" mean "" and "src").
+        var relative = path.StartsWith('/') ? path[1..] : path;
+        if (relative.Length == 0)
         {
-            return Result.Fail("path must be relative to the repository root");
+            return allowEmpty ? Result.Ok(string.Empty) : Result.Fail("path must not be empty");
         }
 
-        var trimmed = path.EndsWith('/') ? path[..^1] : path;
+        var trimmed = relative.EndsWith('/') ? relative[..^1] : relative;
         var segments = trimmed.Split('/');
         if (segments.Any(segment => segment.Length == 0))
         {

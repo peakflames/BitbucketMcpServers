@@ -15,7 +15,11 @@ public class RepoPathValidatorTests
     [InlineData("a%5cb")]
     [InlineData("a%255Cb")]
     [InlineData("a\\b")]
-    [InlineData("/abs")]
+    [InlineData("//abs")]
+    [InlineData("//")]
+    [InlineData("/../x")]
+    [InlineData("/%2e%2e/x")]
+    [InlineData("/")]
     [InlineData("a?b")]
     [InlineData("a#b")]
     [InlineData("a\nb")]
@@ -30,7 +34,10 @@ public class RepoPathValidatorTests
     [Theory]
     [InlineData("a/b c/d.txt", "a/b%20c/d.txt")]
     [InlineData("README.md", "README.md")]
+    [InlineData("/README.md", "README.md")]
+    [InlineData("/src/b c/d.txt", "src/b%20c/d.txt")]
     [InlineData("src/dir/", "src/dir")]
+    [InlineData("/src/dir/", "src/dir")]
     [InlineData("100%.txt", "100%25.txt")]
     [InlineData("dir/file+name&x=1.txt", "dir/file%2Bname%26x%3D1.txt")]
     public void ValidateAndEscapePath_AcceptsAndEscapesEachSegmentOnce(string path, string expected)
@@ -44,6 +51,7 @@ public class RepoPathValidatorTests
     [Theory]
     [InlineData(null)]
     [InlineData("")]
+    [InlineData("/")]
     public void ValidateAndEscapePath_AllowsEmpty_ForTheDirectoryRoot(string? path)
     {
         var result = RepoPathValidator.ValidateAndEscapePath(path, allowEmpty: true);
@@ -95,7 +103,7 @@ public class ReadFilePathHardeningTests : IAsyncLifetime
     [InlineData("%2e%2e/x")]
     [InlineData("%252e%252e/x")]
     [InlineData("a\\..\\x")]
-    [InlineData("/abs/path")]
+    [InlineData("//abs/path")]
     [InlineData("a?b=c")]
     [InlineData("a#frag")]
     public async Task ReadFile_RejectsUnsafePaths_WithoutReachingTheUpstream(string filePath)
@@ -166,6 +174,20 @@ public class ReadFilePathHardeningTests : IAsyncLifetime
         var srcRequest = Assert.Single(_host.Bitbucket.RequestedPaths, IsSrcRequest);
         Assert.Contains("/src/main/a/b%20c/d.txt", srcRequest, StringComparison.Ordinal);
         Assert.DoesNotContain("%2520", srcRequest, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task ReadFile_LeadingSlashPath_IsTreatedAsRepositoryRelative()
+    {
+        _host.Bitbucket.OnSrc($"{ToolTestHost.AccountName}/{ToolTestHost.RepoSlug}/main/a/d.txt", "rooted");
+
+        var text = await _host.CallToolTextAsync("read_file",
+            new { repoName = ToolTestHost.RepoSlug, filePath = "/a/d.txt", @ref = "main" });
+
+        Assert.Contains("rooted", text, StringComparison.Ordinal);
+        var srcRequest = Assert.Single(_host.Bitbucket.RequestedPaths, IsSrcRequest);
+        Assert.Contains("/src/main/a/d.txt", srcRequest, StringComparison.Ordinal);
+        Assert.DoesNotContain("/src/main//", srcRequest, StringComparison.Ordinal);
     }
 
     [Fact]
