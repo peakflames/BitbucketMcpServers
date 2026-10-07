@@ -10,8 +10,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 
 ### Changed
+- `Peakflames.SharpBucket` 0.18.0 → 0.19.0.
 
 ### Fixed
+
+### Security
+- Tool error messages no longer include raw upstream exception text, and credential-like values
+  are redacted from both the returned message and the server log.
+- Repository file paths and refs are validated and escaped before a request is built.
 
 ## [0.2.0] - 2026-09-01
 

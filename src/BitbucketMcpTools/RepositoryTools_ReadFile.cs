@@ -23,6 +23,18 @@ public partial class RepositoryTools
         [Description("Maximum number of bytes of file content to return before truncating. Default is 102400 (100 KB).")]
         int maxSizeBytes = DefaultMaxFileSizeBytes)
     {
+        var pathResult = RepoPathValidator.ValidateAndEscapePath(filePath, allowEmpty: false);
+        if (pathResult.IsFailed)
+        {
+            return $"ERROR: Invalid path '{filePath}': {pathResult.Errors.First().Message}";
+        }
+
+        var refResult = RepoPathValidator.ValidateRef(@ref);
+        if (refResult.IsFailed)
+        {
+            return $"ERROR: Invalid ref '{@ref}': {refResult.Errors.First().Message}";
+        }
+
         await using var scope = _serviceProvider.CreateAsyncScope();
         var clientFactory = scope.ServiceProvider.GetRequiredService<IBitbucketClientFactory>();
         var clientResult = await clientFactory.CreateClientAsync(repoName);
@@ -49,7 +61,7 @@ public partial class RepositoryTools
             }
 
             var srcResource = bitBucketClient.RepositoryResource.SrcResource(revision, null);
-            var content = await srcResource.GetFileContentAsync(filePath);
+            var content = await srcResource.GetFileContentAsync(pathResult.Value);
 
             if (content is null)
             {
@@ -82,12 +94,8 @@ public partial class RepositoryTools
         }
         catch (Exception ex)
         {
-            var returnMsg = $"ERROR: Failed to read file due to exception '{ex.Message}'";
-            if (ex.InnerException != null)
-            {
-                returnMsg += $"\nInner Exception: {ex.InnerException.Message}";
-            }
-            return returnMsg;
+            var logger = scope.ServiceProvider.GetService<ILogger<RepositoryTools>>();
+            return ToolErrorFormatter.Format("read file", ex, logger);
         }
     }
 

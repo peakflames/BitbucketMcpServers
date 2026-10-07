@@ -14,7 +14,10 @@ public sealed class FakeBitbucketServer : IAsyncDisposable
     private readonly Dictionary<string, string> _commits = new(StringComparer.Ordinal);
     private readonly Dictionary<string, string> _branches = new(StringComparer.Ordinal);
     private readonly Dictionary<string, string> _workspaces = new(StringComparer.Ordinal);
+    private readonly Dictionary<string, string> _srcContents = new(StringComparer.Ordinal);
+    private readonly Dictionary<string, string> _srcRedirects = new(StringComparer.Ordinal);
     private readonly List<string> _authorizationHeaders = [];
+    private readonly List<string> _requestedPaths = [];
     private readonly Lock _authorizationHeadersLock = new();
 
     public string BaseUrl { get; private set; } = string.Empty;
@@ -35,6 +38,22 @@ public sealed class FakeBitbucketServer : IAsyncDisposable
         }
     }
 
+    /// <summary>
+    /// The raw request target (path plus query, exactly as it arrived on the wire, before any
+    /// routing-level decoding) of every request received so far, in arrival order. Lets a test
+    /// prove which URL SharpBucket really built, including how many times a segment was encoded.
+    /// </summary>
+    public IReadOnlyList<string> RequestedPaths
+    {
+        get
+        {
+            lock (_authorizationHeadersLock)
+            {
+                return [.. _requestedPaths];
+            }
+        }
+    }
+
     private FakeBitbucketServer(WebApplication app) => _app = app;
 
     public static async Task<FakeBitbucketServer> StartAsync()
@@ -47,6 +66,12 @@ public sealed class FakeBitbucketServer : IAsyncDisposable
 
         app.Use(async (context, next) =>
         {
+            var rawTarget = context.Features.Get<IHttpRequestFeature>()?.RawTarget ?? context.Request.Path.Value ?? string.Empty;
+            lock (server._authorizationHeadersLock)
+            {
+                server._requestedPaths.Add(rawTarget);
+            }
+
             if (context.Request.Headers.TryGetValue("Authorization", out var authorization))
             {
                 lock (server._authorizationHeadersLock)
@@ -70,6 +95,16 @@ public sealed class FakeBitbucketServer : IAsyncDisposable
         app.MapGet("/repositories/{account}/{repo}/refs/branches", (string account, string repo) =>
             server.Respond(server._branches, $"{account}/{repo}"));
 
+        // Catch-all for file content and directory listings. The key is the decoded
+        // "{account}/{repo}/{ref}/{path}" the route resolved; unregistered keys 404.
+        app.MapGet("/repositories/{account}/{repo}/src/{**rest}", (string account, string repo, string rest) =>
+        {
+            var key = $"{account}/{repo}/{rest}";
+            return server._srcRedirects.TryGetValue(key, out var location)
+                ? Results.Redirect(location)
+                : server.RespondText(server._srcContents, key);
+        });
+
         app.MapGet("/workspaces/{workspace}", (string workspace) =>
             server.Respond(server._workspaces, workspace));
 
@@ -92,6 +127,19 @@ public sealed class FakeBitbucketServer : IAsyncDisposable
 
     public void OnWorkspace(string accountName, string json) =>
         _workspaces[accountName] = json;
+
+    /// <summary>Serves <paramref name="content"/> as 200 text for the decoded "{account}/{repo}/{ref}/{path}" key.</summary>
+    public void OnSrc(string key, string content) =>
+        _srcContents[key] = content;
+
+    /// <summary>Answers the decoded "{account}/{repo}/{ref}/{path}" key with a 302 to <paramref name="location"/>.</summary>
+    public void OnSrcRedirect(string key, string location) =>
+        _srcRedirects[key] = location;
+
+    private IResult RespondText(Dictionary<string, string> table, string key) =>
+        table.TryGetValue(key, out var content)
+            ? Results.Text(content, "text/plain")
+            : Results.NotFound(new { type = "error", error = new { message = $"Not found: {key}" } });
 
     private IResult Respond(Dictionary<string, string> table, string key) =>
         table.TryGetValue(key, out var json)
